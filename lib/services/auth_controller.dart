@@ -12,7 +12,11 @@ abstract class SessionVault {
 
 class SecureSessionVault implements SessionVault {
   const SecureSessionVault();
-  static const _storage = FlutterSecureStorage();
+  // A standalone macOS build has no provisioning profile for shared Keychain
+  // groups. Use the login Keychain; credentials still stay in the OS vault.
+  static const _storage = FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   static const _key = 'biload.bilibili.session.v1';
   @override
   Future<String?> read() => _storage.read(key: _key);
