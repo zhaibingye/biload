@@ -145,7 +145,9 @@ class TestTransfer extends Fake implements Transfer {
   Future<void> finish({int? error, int length = 32}) async {
     if (completed.isCompleted) return;
     if (error == null) {
-      final file = File(p.join(task.directory, task.filename));
+      // Task stores root-based Unix directories without their leading slash.
+      // Resolve through the same API as the native downloader on every OS.
+      final file = File(await task.filePath());
       await file.parent.create(recursive: true);
       await file.writeAsBytes(List.filled(length, 7));
     }

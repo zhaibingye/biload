@@ -16,6 +16,7 @@ jobs:
           flutter-version: '3.47.8'
           cache: true
       - run: flutter pub get
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
       - run: dart format --output=none --set-exit-if-changed lib test tool integration_test
       - run: flutter analyze
       - run: flutter test --reporter expanded
