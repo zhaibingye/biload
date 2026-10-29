@@ -1,25 +1,23 @@
 name: Release packages
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Platform to build
+        type: choice
+        default: all
+        options: [all, windows, linux, macos, android]
   push:
     tags: ['v*']
 permissions:
   contents: read
 jobs:
   desktop:
+    if: inputs.target != 'android'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            target: windows
-            package: windows-x64
-          - os: ubuntu-22.04
-            target: linux
-            package: linux-x64
-          - os: macos-15
-            target: macos
-            package: macos-universal
+        include: ${{ fromJSON(inputs.target == 'linux' && '[{"os":"ubuntu-22.04","target":"linux","package":"linux-x64"}]' || inputs.target == 'macos' && '[{"os":"macos-15","target":"macos","package":"macos-universal"}]' || inputs.target == 'windows' && '[{"os":"windows-latest","target":"windows","package":"windows-x64"}]' || '[{"os":"windows-latest","target":"windows","package":"windows-x64"},{"os":"ubuntu-22.04","target":"linux","package":"linux-x64"},{"os":"macos-15","target":"macos","package":"macos-universal"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +30,7 @@ jobs:
           flutter-version: '3.47.8'
           cache: true
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjson-glib-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjson-glib-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev ffmpeg libopencore-amrnb0 libvo-amrwbenc0
       - run: flutter pub get
       - run: flutter build ${{ matrix.target }} --release
       - if: runner.os == 'Windows'
@@ -48,12 +46,16 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md AUTHORS "$bundle/"
           # FFmpegKit's Ubuntu 22.04 build links libvpx.so.7; Ubuntu 24.04
           # supplies libvpx.so.9. Bundle this codec ABI with its license.
-          vpx=$(ldconfig -p | awk '/libvpx.so.7 / { path=$NF } END { print path }')
-          test -n "$vpx"
-          cp -L "$vpx" "$bundle/lib/libvpx.so.7"
-          mkdir -p "$bundle/licenses/libvpx7"
-          cp /usr/share/doc/libvpx7/copyright "$bundle/licenses/libvpx7/"
-          dpkg-query -W -f='${Package} ${Version}\n' libvpx7 > "$bundle/licenses/libvpx7/package.txt"
+          for soname in libvpx.so.7 libopencore-amrnb.so.0 libvo-amrwbenc.so.0; do
+            library=$(ldconfig -p | awk -v name="$soname" '$1 == name { path=$NF } END { print path }')
+            test -n "$library"
+            cp -L "$library" "$bundle/lib/$soname"
+          done
+          for package in libvpx7 libopencore-amrnb0 libvo-amrwbenc0; do
+            mkdir -p "$bundle/licenses/$package"
+            cp "/usr/share/doc/$package/copyright" "$bundle/licenses/$package/"
+            dpkg-query -W -f='${Package} ${Version}\n' "$package" > "$bundle/licenses/$package/package.txt"
+          done
           LD_LIBRARY_PATH="$bundle/lib" ldd "$bundle/biload" "$bundle/lib/libffmpegkit.so" | tee linux-runtime.txt
           if grep -q 'not found' linux-runtime.txt; then exit 1; fi
           LD_LIBRARY_PATH="$bundle/lib" python3 -c "import ctypes; ctypes.CDLL('$bundle/lib/libffmpegkit.so'); print('FFmpegKit runtime loaded')"
@@ -79,6 +81,7 @@ jobs:
             linux-runtime.txt
           if-no-files-found: error
   android:
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4

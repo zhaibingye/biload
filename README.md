@@ -34,7 +34,7 @@ Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-
 |---|---|
 | Windows | 10/11 x64 |
 | Linux | Ubuntu 22.04/24.04 x64 |
-| macOS | 12+，arm64/x64 |
+| macOS | 当前 0.1.5 包要求 13+，arm64/x64；12 的兼容目标尚未完成 |
 | Android | 8+，arm64 |
 
 平台目录存在不代表实机验证完成。验证状态见 [开发记录](docs/DEVELOPMENT.md)。
