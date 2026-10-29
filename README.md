@@ -12,6 +12,8 @@
 
 Windows 需要系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1、libsecret 和 Secret Service。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
 
+Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0`。Linux 包自带 FFmpegKit 所需的 libvpx 7，避免 Ubuntu 24.04 系统仅有 libvpx 9 时缺少库。
+
 ## 功能
 
 - 解析视频链接、BV/AV、`b23.tv` 分享链接、分 P、番剧/影视的 ep/ss/md 编号。
