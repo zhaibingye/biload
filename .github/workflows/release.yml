@@ -48,7 +48,7 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md AUTHORS "$bundle/"
           # FFmpegKit's Ubuntu 22.04 build links libvpx.so.7; Ubuntu 24.04
           # supplies libvpx.so.9. Bundle this codec ABI with its license.
-          vpx=$(ldconfig -p | awk '/libvpx.so.7 / { print $NF; exit }')
+          vpx=$(ldconfig -p | awk '/libvpx.so.7 / { path=$NF } END { print path }')
           test -n "$vpx"
           cp -L "$vpx" "$bundle/lib/libvpx.so.7"
           mkdir -p "$bundle/licenses/libvpx7"
@@ -56,6 +56,7 @@ jobs:
           dpkg-query -W -f='${Package} ${Version}\n' libvpx7 > "$bundle/licenses/libvpx7/package.txt"
           LD_LIBRARY_PATH="$bundle/lib" ldd "$bundle/biload" "$bundle/lib/libffmpegkit.so" | tee linux-runtime.txt
           if grep -q 'not found' linux-runtime.txt; then exit 1; fi
+          LD_LIBRARY_PATH="$bundle/lib" python3 -c "import ctypes; ctypes.CDLL('$bundle/lib/libffmpegkit.so'); print('FFmpegKit runtime loaded')"
           tar czf "biload-$version-linux-x64.tar.gz" -C "$bundle" .
       - if: runner.os == 'macOS'
         run: |
