@@ -1,0 +1,132 @@
+{
+  "file": "biload-0.1.1-android-arm64-test.apk",
+  "sizeBytes": 66367491,
+  "sha256": "1bd448f7b6e9e2a31670dab6121cd063b01f4130f532fa1cbb32efb38c198882",
+  "elfLibraries": [
+    {
+      "name": "libapp.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libavcodec.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavdevice.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavfilter.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavformat.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavutil.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libc++_shared.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libdartjni.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit_abidetect.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libflutter.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libsqlite3.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswresample.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswscale.so",
+      "alignments": [
+        "0x4000"
+      ]
+    }
+  ],
+  "licenseAssets": [
+    "assets/flutter_assets/NOTICES.Z"
+  ],
+  "verifiedAt": "2026-10-29T14:13:25.2291156Z",
+  "badging": [
+    "package: name='app.biload.biload' versionCode='2002' versionName='0.1.1' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+    "sdkVersion:'26'",
+    "targetSdkVersion:'36'",
+    "native-code: 'arm64-v8a'"
+  ],
+  "signatureVerified": true,
+  "signatureType": "development key, optimized release compilation",
+  "zipAlignment16KB": true,
+  "nativeLicenseAssetsPresent": true,
+  "automatedTestsPassed": 30,
+  "staticAnalysis": "no issues",
+  "nativePluginRegistration": {
+    "checked": true,
+    "runtimePluginCount": 9,
+    "guard": "tool/verify_android_plugins.dart"
+  },
+  "testedOnDevice": true,
+  "deviceVerification": {
+    "model": "23049RAD8C",
+    "androidVersion": "15",
+    "apiLevel": 35,
+    "abi": "arm64-v8a",
+    "upgradeInstall": "adb install -r, existing app data retained",
+    "installedVersionName": "0.1.1",
+    "installedVersionCode": 2002,
+    "coldStartsVerified": 3,
+    "monitoredSecondsPerRepeatedColdStart": 20,
+    "startupErrorsInAppProcess": 0,
+    "pagesVerified": [
+      "home",
+      "download tasks",
+      "account and settings"
+    ],
+    "accountLoginTested": false,
+    "nativeDownloadAndMuxTested": false
+  }
+}

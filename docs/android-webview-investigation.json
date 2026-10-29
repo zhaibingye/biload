@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-29",
+  "reportedIssue": "Bilibili login captcha popup does not load",
+  "device": {
+    "model": "23049RAD8C",
+    "androidVersion": "15",
+    "osBuild": "OS3.0.5.0.VMRCNXM",
+    "webViewProvider": "com.google.android.webview",
+    "webViewVersion": "155.0.8059.43",
+    "providerReportedValidAndEnabled": true,
+    "webViewRelrosFinished": 2,
+    "chromeVersion": "155.0.8059.84"
+  },
+  "observations": [
+    "Official Bilibili mobile login form renders in biload and Chrome.",
+    "During user reproduction, Geetest gettype.php returned HTTP 200 with a valid success bootstrap, but no captcha DOM existed yet.",
+    "The public fullpage.9.2.0-guwyxh.js fetch in the same WebView timed out at 12003 ms on static.geetest.com; static.geevisit.com returned a response in 465 ms.",
+    "Phone Chrome opened the primary public script successfully.",
+    "A later probe in the same biload WebView succeeded on the primary URL in 234 ms, a fresh primary URL in 257 ms, and the alternate URL in 184 ms.",
+    "The user confirmed that the captcha popup recovered, without completing login.",
+    "An independently built native Android WebView control, using the unchanged system provider and no Flutter layer, loaded and executed the same public script from static.geetest.com in 421 ms and static.geevisit.com in 369 ms."
+  ],
+  "assessment": {
+    "confirmed": "Captcha resource loading was temporarily stalled and subsequently recovered.",
+    "underlyingCauseConfirmed": false,
+    "systemWebViewRenderingDefectProven": false,
+    "loginCompletionVerified": false,
+    "repeatUserVerification": "user confirms captcha works in restored normal biload build",
+    "captchaSpecificCodeFix": false,
+    "providerWideOutageProven": false
+  },
+  "cleanup": {
+    "temporaryNativeControlRemoved": true,
+    "adbDiagnosticPortForwardRemoved": true,
+    "normalBiloadBuildRestored": "0.1.1+2, split versionCode 2002, non-debuggable",
+    "biloadAppDataPreserved": true,
+    "systemWebViewReplaced": false,
+    "systemSettingsChanged": false
+  },
+  "privacy": "Diagnostics exclude form values, request bodies, Cookie headers and login tokens. Committed evidence includes only public resource names and timings.",
+  "subsequentLogin": {
+    "userConfirmed": true,
+    "date": "2026-10-29",
+    "account": "VIP"
+  }
+}

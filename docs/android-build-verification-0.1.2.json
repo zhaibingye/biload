@@ -1,0 +1,142 @@
+{
+  "file": "biload-0.1.2-android-arm64-test.apk",
+  "sizeBytes": 66367495,
+  "sha256": "715c1e688d0c5d6809b55ab6798b3c4ac3a708970469ed15059d96314e437ee3",
+  "verifiedAt": "2026-10-29T16:06:46.2055196Z",
+  "badging": [
+    "package: name='app.biload.biload' versionCode='2003' versionName='0.1.2'",
+    "sdkVersion:'26'",
+    "targetSdkVersion:'36'",
+    "native-code: 'arm64-v8a'"
+  ],
+  "signatureVerified": true,
+  "signatureType": "development key, optimized release compilation",
+  "zipAlignment16KB": true,
+  "elfLibraries": [
+    {
+      "name": "libapp.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libavcodec.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavdevice.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavfilter.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavformat.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavutil.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libc++_shared.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libdartjni.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit_abidetect.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libflutter.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libsqlite3.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswresample.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswscale.so",
+      "alignments": [
+        "0x4000"
+      ]
+    }
+  ],
+  "licenseAssets": [
+    "assets/flutter_assets/NOTICES.Z",
+    "assets/flutter_assets/THIRD_PARTY_NOTICES.md"
+  ],
+  "automatedTestsPassed": 35,
+  "staticAnalysis": "no issues",
+  "nativePluginRegistration": {
+    "runtimePluginCount": 9,
+    "checked": true,
+    "guard": "tool/verify_android_plugins.dart"
+  },
+  "deviceVerification": {
+    "model": "23049RAD8C",
+    "androidVersion": "15",
+    "apiLevel": 35,
+    "upgradeInstall": "adb install -r",
+    "installedVersionName": "0.1.2",
+    "installedVersionCode": 2003,
+    "accountEntryCheck": "passed: signed-in entry opens account information, UID and VIP status; no login dialog",
+    "notificationRecoveryCheck": "passed: notification request shown, permission granted, queued tasks continued; no new ANR observed",
+    "newAnrAfterUpgradeObserved": false,
+    "temporaryStayAwakeRestored": true
+  },
+  "nativeIntegration": {
+    "testsPassed": 3,
+    "report": "artifacts/native/20261029-235430-071/report.json",
+    "syntheticMux": "MKV H264 AAC Unicode path",
+    "slowNativeTransferMs": 15895,
+    "publicVideoOutputBytes": 6948878,
+    "persistedStatus": "complete",
+    "scope": "isolated debug application using production DownloadManager and MediaMuxer",
+    "systemExportVerified": true,
+    "memberEvidence": "artifacts/member/20261030/report.json",
+    "vipOrdinaryVideoVerified": true,
+    "pgcCatalogVerified": {
+      "videoVariants": 19,
+      "episodeId": 3854821,
+      "audioVariants": 3
+    },
+    "pgcEpisodeDownloadVerified": false
+  }
+}

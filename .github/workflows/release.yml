@@ -1,0 +1,87 @@
+name: Release packages
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows
+            package: windows-x64
+          - os: ubuntu-22.04
+            target: linux
+            package: linux-x64
+          - os: macos-15
+            target: macos
+            package: macos-universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjson-glib-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
+      - run: flutter pub get
+      - run: flutter build ${{ matrix.target }} --release
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = ((Select-String '^version:' pubspec.yaml).Line -split ' ')[1].Split('+')[0]
+          Copy-Item LICENSE,THIRD_PARTY_NOTICES.md,AUTHORS build/windows/x64/runner/Release/
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "biload-$version-windows-x64.zip"
+      - if: runner.os == 'Linux'
+        run: |
+          version=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
+          bundle=build/linux/x64/release/bundle
+          cp LICENSE THIRD_PARTY_NOTICES.md AUTHORS "$bundle/"
+          ldd "$bundle/biload" | tee linux-runtime.txt
+          if grep -q 'not found' linux-runtime.txt; then exit 1; fi
+          tar czf "biload-$version-linux-x64.tar.gz" -C "$bundle" .
+      - if: runner.os == 'macOS'
+        run: |
+          version=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
+          app=build/macos/Build/Products/Release/biload.app
+          lipo -archs "$app/Contents/MacOS/biload" | tee macos-architectures.txt
+          grep -q arm64 macos-architectures.txt
+          grep -q x86_64 macos-architectures.txt
+          cp LICENSE THIRD_PARTY_NOTICES.md AUTHORS "$app/Contents/Resources/"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "biload-$version-macos-universal.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biload-${{ matrix.package }}
+          path: |
+            biload-*.zip
+            biload-*.tar.gz
+            *-architectures.txt
+            linux-runtime.txt
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release --target-platform android-arm64 --split-per-abi
+      - run: dart run tool/verify_android_plugins.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biload-android-arm64-ci-development-signature
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: error

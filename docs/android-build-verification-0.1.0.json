@@ -1,0 +1,105 @@
+{
+  "verifiedAt": "2026-10-29T13:45:34.9219925+00:00",
+  "file": "biload-0.1.0-android-arm64-test.apk",
+  "sizeBytes": 66252639,
+  "sha256": "4c21e3a45ff225437739394cf6d70ffcffeef827b2c2aee0dce32667e21f497a",
+  "badging": [
+    "package: name='app.biload.biload' versionCode='2001' versionName='0.1.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+    "sdkVersion:'26'",
+    "targetSdkVersion:'36'",
+    "native-code: 'arm64-v8a'"
+  ],
+  "signatureVerified": true,
+  "signatureType": "development key, optimized release compilation",
+  "zipAlignment16KB": true,
+  "elfLibraries": [
+    {
+      "name": "libapp.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libavcodec.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavdevice.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavfilter.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavformat.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libavutil.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libc++_shared.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libdartjni.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libffmpegkit_abidetect.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libflutter.so",
+      "alignments": [
+        "0x10000"
+      ]
+    },
+    {
+      "name": "libsqlite3.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswresample.so",
+      "alignments": [
+        "0x4000"
+      ]
+    },
+    {
+      "name": "libswscale.so",
+      "alignments": [
+        "0x4000"
+      ]
+    }
+  ],
+  "nativeLicenseAssetsPresent": true,
+  "automatedTestsPassed": 27,
+  "staticAnalysis": "no issues",
+  "testedOnDevice": false
+}
