@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -5,9 +7,15 @@ import 'package:flutter/services.dart';
 import 'app_controller.dart';
 import 'ui/app.dart';
 import 'ui/theme.dart';
+import 'verification/release_verification.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!Platform.isAndroid &&
+      Platform.environment['BILOAD_VERIFY_RELEASE'] == '1') {
+    runReleaseVerification();
+    return;
+  }
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'biload',

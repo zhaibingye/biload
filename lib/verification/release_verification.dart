@@ -1,0 +1,288 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:background_downloader/background_downloader.dart';
+import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../app_controller.dart';
+import '../core/bili_api.dart';
+import '../core/models.dart';
+import '../data/local_store.dart';
+import '../services/auth_controller.dart';
+import '../services/download_manager.dart';
+import '../ui/app.dart';
+import 'isolated_transfer_store.dart';
+
+/// Opt-in verification of the packaged desktop executable, with synthetic media
+/// and separate databases, outputs, and credentials. Never restores a user login.
+void runReleaseVerification() {
+  runApp(const MaterialApp(home: Scaffold(body: Text('biload 验证中'))));
+  unawaited(_verify());
+}
+
+Future<void> _until(bool Function() condition, String operation) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 90));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw StateError('Timed out: $operation');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+}
+
+void _check(bool condition, String message) {
+  if (!condition) throw StateError(message);
+}
+
+class _FixtureApi extends BiliApi {
+  _FixtureApi(this.base, this.sizes);
+  final Uri base;
+  final Map<String, dynamic> sizes;
+  bool slow = false;
+  static const page = MediaPage(
+    ref: ContentRef(ContentKind.video, 'BV19pnt6XE6d'),
+    cid: 1,
+    aid: 1,
+    bvid: 'BV19pnt6XE6d',
+    title: 'biload 中文 # 100% 验证',
+    part: '原创测试素材',
+    index: 1,
+    duration: 2,
+  );
+  StreamSource source(String file) =>
+      StreamSource([base.resolve(file).toString()], size: sizes[file] as int);
+  @override
+  Future<MediaContent> content(ContentRef ref) async => const MediaContent(
+    title: 'biload 中文 # 100% 验证',
+    author: '烨染霜华',
+    cover: '',
+    pages: [page],
+  );
+  @override
+  Future<StreamCatalog> catalog(MediaPage page) async => StreamCatalog(
+    videos: [
+      for (final (codec, name, file) in [
+        (7, 'avc1', slow ? 'slow.mp4' : 'avc.mp4'),
+        (12, 'hev1', 'hevc.mp4'),
+        (13, 'av01', 'av1.mp4'),
+      ])
+        VideoVariant(
+          quality: 80,
+          codec: codec,
+          codecs: name,
+          bandwidth: 100000,
+          width: 128,
+          height: 72,
+          frameRate: '8',
+          sources: [source(file)],
+        ),
+    ],
+    audios: [
+      for (final (id, codec, file) in [
+        (30280, 'mp4a.40.2', 'aac.m4a'),
+        (30251, 'fLaC', 'hires.flac'),
+        (30250, 'ec-3', 'dolby.eac3'),
+      ])
+        AudioVariant(
+          id: id,
+          codecs: codec,
+          bandwidth: 128000,
+          sources: [source(file)],
+        ),
+    ],
+  );
+}
+
+Future<void> _verify() async {
+  final report = <String, dynamic>{
+    'platform': Platform.operatingSystem,
+    'started': DateTime.now().toUtc().toIso8601String(),
+    'checks': <String>[],
+  };
+  final checks = report['checks'] as List<String>;
+  Directory? root;
+  try {
+    final id = Platform.environment['BILOAD_VERIFY_ID'] ?? '';
+    _check(RegExp(r'^[a-zA-Z0-9_-]{1,80}$').hasMatch(id), 'Invalid run id');
+    final base = Uri.parse(
+      Platform.environment['BILOAD_VERIFY_BASE_URL'] ?? '',
+    );
+    _check(
+      base.scheme == 'http' && base.host == '127.0.0.1',
+      'Verification only accepts loopback fixtures',
+    );
+    root = Directory(
+      p.join((await getApplicationSupportDirectory()).path, 'verification', id),
+    );
+    await root.create(recursive: true);
+    stdout.writeln('BILOAD_RELEASE_REPORT=${p.join(root.path, 'report.json')}');
+    await stdout.flush();
+    final client = HttpClient();
+    Future<Json> manifest() async {
+      final response = await (await client.getUrl(
+        base.resolve('manifest.json'),
+      )).close();
+      return object(jsonDecode(await utf8.decoder.bind(response).join()));
+    }
+
+    final api = _FixtureApi(base, object((await manifest())['files']));
+    final store = LocalStore(p.join(root.path, 'jobs.sqlite'));
+    store.setSetting('probe', id);
+    _check(store.setting('probe') == id, 'SQLite round trip');
+    checks.add('sqlite');
+    final vault = SecureSessionVault(key: 'biload.verification.$id');
+    await vault.write('synthetic-$id');
+    _check(await vault.read() == 'synthetic-$id', 'OS credential round trip');
+    await vault.clear();
+    _check(await vault.read() == null, 'OS credential cleanup');
+    checks.add('os-credential-vault');
+    final transferStore = IsolatedTransferStore(
+      p.join(root.path, 'transfers.sqlite'),
+    );
+    final downloader = FileDownloader(persistentStorage: transferStore);
+    final manager = DownloadManager(
+      api: api,
+      store: store,
+      workDirectory: p.join(root.path, 'working'),
+      downloader: downloader,
+    );
+    await manager.initialize();
+    final output = p.join(root.path, '下载 中文 # 100%');
+    final controller = BiloadController(
+      api: api,
+      auth: AuthController(api, vault),
+      downloads: manager,
+      store: store,
+      outputDirectory: output,
+    );
+    final flutterErrors = <String>[];
+    FlutterError.onError = (details) => flutterErrors.add(details.toString());
+    runApp(BiloadApp(controller: controller));
+    await WidgetsBinding.instance.endOfFrame;
+    await controller.parse('https://www.bilibili.com/video/BV19pnt6XE6d/');
+    _check(controller.error == null, 'Controller parse: ${controller.error}');
+    _check(
+      controller.selectedVideos.length == 1 &&
+          controller.selectedAudios.length == 1,
+      'Default track selection',
+    );
+    checks.add('ui-and-default-selection');
+
+    Future<void> download(
+      VideoVariant? video,
+      List<AudioVariant> audios,
+      String container,
+      String label, {
+      bool pause = false,
+    }) async {
+      final jobs = await manager.add(
+        page: _FixtureApi.page,
+        videos: video == null ? [] : [video],
+        audios: audios,
+        container: container,
+        directory: output,
+      );
+      _check(jobs.length == 1, '$label should create one output');
+      final job = jobs.single;
+      if (pause) {
+        await _until(
+          () => job.downloadedBytes > 100000 || job.isFinished,
+          'download before pause',
+        );
+        _check(!job.isFinished, 'Pause fixture completed too soon');
+        await manager.pause(job);
+        await _until(() => !manager.hasActiveWorkers, 'paused worker');
+        _check(job.status == JobStatus.paused, 'Paused state');
+        await manager.resume(job);
+      }
+      await _until(() => job.isFinished, label);
+      _check(job.status == JobStatus.complete, '$label: ${job.message}');
+      _check(
+        job.progress == 1 && job.remainingBytes == 0,
+        '$label byte progress',
+      );
+      _check(await File(job.output).length() > 0, '$label published file');
+      final info = (await FFprobeKit.getMediaInformation(job.output))
+          .getMediaInformation();
+      final streams = info?.getStreams();
+      _check(streams != null, '$label ffprobe');
+      _check(
+        streams!.where((s) => s.getType() == 'video').length ==
+            (video == null ? 0 : 1),
+        '$label video tracks',
+      );
+      _check(
+        streams.where((s) => s.getType() == 'audio').length == audios.length,
+        '$label audio tracks',
+      );
+      await _until(() => !manager.hasActiveWorkers, '$label cleanup');
+      final leftovers = await Directory(manager.workDirectory)
+          .list(recursive: true)
+          .where((entry) => entry is File)
+          .toList();
+      _check(leftovers.isEmpty, '$label retained duplicate cache');
+      _check(
+        store.loadJobs().any(
+          (saved) =>
+              saved.output == job.output && saved.status == JobStatus.complete,
+        ),
+        '$label persisted completion',
+      );
+      checks.add(label);
+    }
+
+    final catalog = controller.catalog!;
+    for (final video in catalog.videos) {
+      await download(
+        video,
+        [catalog.audios.first],
+        'mp4',
+        '${video.codecLabel}-AAC',
+      );
+    }
+    await download(
+      catalog.videos.first,
+      catalog.audios,
+      'mkv',
+      'multi-audio-AAC-FLAC-EAC3',
+    );
+    for (final audio in catalog.audios) {
+      await download(null, [audio], 'mkv', 'audio-only-${audio.id}');
+    }
+    api.slow = true;
+    await download(
+      (await api.catalog(_FixtureApi.page)).videos.first,
+      [catalog.audios.first],
+      'mp4',
+      'pause-resume',
+      pause: true,
+    );
+    final requests = objects((await manifest())['rangeRequests']);
+    _check(
+      requests.any((r) => r['file'] == 'slow.mp4' && integer(r['start']) > 0),
+      'Resume must issue a byte Range',
+    );
+    checks.add('http-range-resume');
+    _check(flutterErrors.isEmpty, 'Flutter errors: $flutterErrors');
+    checks.add('no-flutter-errors');
+    client.close();
+    store.close();
+    transferStore.db.close();
+    report['passed'] = true;
+  } catch (error, stack) {
+    report['passed'] = false;
+    report['error'] = '$error';
+    report['stack'] = '$stack';
+    stderr.writeln('BILOAD_RELEASE_FAILURE=$error');
+  }
+  report['finished'] = DateTime.now().toUtc().toIso8601String();
+  if (root != null) {
+    await File(p.join(root.path, 'report.json'))
+        .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  }
+  exit(report['passed'] == true ? 0 : 1);
+}

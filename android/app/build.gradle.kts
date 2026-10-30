@@ -30,6 +30,17 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseStore = System.getenv("BILOAD_KEYSTORE_PATH")
+    signingConfigs {
+        if (!releaseStore.isNullOrBlank()) {
+            create("biloadRelease") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("BILOAD_STORE_PASSWORD")
+                keyAlias = System.getenv("BILOAD_KEY_ALIAS")
+                keyPassword = System.getenv("BILOAD_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             // Native verification must never replace the user's signed-in app.
@@ -37,9 +48,10 @@ android {
             manifestPlaceholders["biloadLabel"] = "biload 开发版"
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI can inspect unsigned packages. Public APKs must be built with
+            // the persistent private key; never substitute a fresh debug key.
+            signingConfig = if (releaseStore.isNullOrBlank()) null
+                else signingConfigs.getByName("biloadRelease")
         }
     }
 }
