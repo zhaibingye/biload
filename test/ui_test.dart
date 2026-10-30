@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
+import 'ui_showcase.dart';
 
 class _UnusedDownloader extends Fake implements FileDownloader {}
 
@@ -58,7 +59,7 @@ void main() {
     if (parsed) {
       result.content = const MediaContent(
         title: '山与海之间，一段值得收藏的旅程',
-        author: '测试创作者',
+        author: '演示创作者',
         cover: '',
         pages: [samplePage],
       );
@@ -106,15 +107,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('把喜欢的，\n好好收藏。'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      if (size.width == 1440 && Platform.environment['BILOAD_CAPTURE'] == '1') {
+        tester.view.physicalSize = const Size(1440, 820);
+        await tester.pumpAndSettle();
+      }
       await capture(tester, 'home-${size.width.toInt()}', key);
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
       await tester.tap(find.text('下载任务').last);
       await tester.pumpAndSettle();
       expect(find.text('这里还没有下载任务'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      if (Platform.environment['BILOAD_CAPTURE'] == '1') {
+        c.downloads.jobs.addAll(showcaseJobs());
+        // Rebuild the visible queue through its existing filter control.
+        await tester.tap(find.widgetWithText(ChoiceChip, '全部'));
+        await tester.pumpAndSettle();
+        await capture(tester, 'queue-${size.width.toInt()}', key);
+      }
       await tester.tap(find.text('账号与设置').last);
       await tester.pumpAndSettle();
       expect(find.text('尚未登录'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await capture(tester, 'settings-${size.width.toInt()}', key);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
       c.store.close();
@@ -162,11 +177,17 @@ void main() {
       c.api.session = BiliSession(cookies: {'SESSDATA': 'fixture-session'});
       c.auth.account = const AccountInfo(
         uid: 42,
-        name: '测试账号',
+        name: '演示账号',
         avatar: '',
         vip: true,
       );
-      await tester.pumpWidget(BiloadApp(controller: c));
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: BiloadApp(controller: c),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.drag(
         find.byType(SingleChildScrollView).first,
@@ -181,6 +202,7 @@ void main() {
       expect(find.text('切换 / 重新登录'), findsOneWidget);
       expect(find.text('退出登录'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await capture(tester, 'account-mobile', key);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
       c.store.close();
@@ -205,7 +227,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.drag(
         find.byType(SingleChildScrollView).first,
-        const Offset(0, -450),
+        const Offset(0, -520),
       );
       await tester.pumpAndSettle();
       expect(find.text('AVC'), findsOneWidget);

@@ -1,10 +1,60 @@
 # biload
 
+**把喜欢的，好好收藏。**
+
 本地优先的哔哩哔哩视频下载工具。Flutter + Dart，共用 Windows、Linux、macOS 和 Android 的界面与核心逻辑。
 
 **作者：烨染霜华** · [下载安装包](https://github.com/zhaibingye/biload/releases) · GPL-3.0-or-later
 
+![biload 桌面工作台：粘贴视频链接，开始选择与下载](docs/images/desktop-home.png)
+
+<p align="center"><b>登录账号 → 粘贴链接 → 挑选版本 → 下载保存</b></p>
+
+[下载安装](#安装) · [界面预览](#界面预览) · [功能介绍](#功能) · [参与开发](#开发)
+
+## 界面预览
+
+以下图片由应用实际界面渲染生成，视频、账号和任务使用演示数据；手机图片展示响应式布局。
+
+### 编码、清晰度、音轨，自己选
+
+AVC、HEVC、AV1 分开列出，普通、杜比与 Hi-Res 音轨按需勾选。选中的音轨合并进视频，也可以只下载音频。
+
+![版本选择：AVC、HEVC、AV1 视频与 AAC、杜比、Hi-Res 音轨](docs/images/desktop-versions.png)
+
+### 下载进度，看得明白
+
+百分比、已下载大小、剩余大小和当前速率放在一起；暂停与继续直接在任务卡片中操作。
+
+![下载队列：按字节显示进度与剩余大小，支持暂停和继续](docs/images/desktop-downloads.png)
+
+### 从电脑到手机，同样顺手
+
+手机布局保留完整的工作台、下载队列和账号入口，底部导航方便切换。
+
+<p align="center">
+  <img src="docs/images/mobile-home.png" alt="手机布局：粘贴链接与新建下载" width="32%">
+  <img src="docs/images/mobile-downloads.png" alt="手机布局：下载任务与字节进度" width="32%">
+  <img src="docs/images/mobile-account.png" alt="手机布局：演示账号信息与下载偏好" width="32%">
+</p>
+
+<p align="center">新建下载 · 下载任务 · 账号与设置</p>
+
+<details>
+<summary>查看桌面端的账号与下载目录设置</summary>
+
+账号管理、并发任务数和下载目录集中在设置页。
+
+![桌面设置：账号管理、并发下载与保存目录](docs/images/desktop-settings.png)
+
+</details>
+
+<details>
+<summary>1.0.0 更新内容</summary>
+
 **1.0.0**。Android 默认保存到公共 `Download/biload`，可更改目录；完成后清理临时文件，旧版文件可迁移。进度按所选音视频流的总字节计算。Windows 修复网页登录状态识别和中文文件路径打开；Linux 修复 FFmpeg 动态库加载与轨道信息读取；修复快速暂停后继续可能卡住的问题。
+
+</details>
 
 ## 安装
 
