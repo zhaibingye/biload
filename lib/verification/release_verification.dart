@@ -108,7 +108,7 @@ class _FixtureApi extends BiliApi {
 
 Future<void> _verify() async {
   final report = <String, dynamic>{
-      'version': '$appVersion+$releaseBuildNumber',
+    'version': '$appVersion+$releaseBuildNumber',
     'platform': Platform.operatingSystem,
     'started': DateTime.now().toUtc().toIso8601String(),
     'checks': <String>[],
