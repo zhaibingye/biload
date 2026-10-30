@@ -29,6 +29,7 @@ class DownloadManager extends ChangeNotifier {
     FileDownloader? downloader,
     OutputStorage? outputStorage,
     bool? isAndroid,
+    this.onError,
   }) : muxer = muxer ?? MediaMuxer(),
        downloader = downloader ?? FileDownloader(),
        outputStorage = outputStorage ?? OutputStorage(),
@@ -40,6 +41,10 @@ class DownloadManager extends ChangeNotifier {
   final FileDownloader downloader;
   final OutputStorage outputStorage;
   final bool isAndroid;
+
+  /// Optional observer for isolated verification; production never logs media
+  /// URLs or account data from native exceptions.
+  final void Function(Object error, StackTrace stack)? onError;
   final List<DownloadJob> jobs = [];
   final Set<String> _running = {};
   final Map<String, Transfer> _transfers = {};
@@ -281,7 +286,8 @@ class DownloadManager extends ChangeNotifier {
       job.status = JobStatus.canceled;
       job.message = '已取消';
       _save(job);
-    } catch (e) {
+    } catch (e, stack) {
+      onError?.call(e, stack);
       if (job.status != JobStatus.canceled) {
         job.status = JobStatus.failed;
         job.message = e is BiliException

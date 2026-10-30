@@ -151,6 +151,11 @@ Future<void> _verify() async {
       store: store,
       workDirectory: p.join(root.path, 'working'),
       downloader: downloader,
+      onError: (error, stack) {
+        // This process only handles local synthetic fixtures, never credentials.
+        report['nativeFailure'] = '$error';
+        report['nativeStack'] = '$stack';
+      },
     );
     await manager.initialize();
     final output = p.join(root.path, '下载 中文 # 100%');
