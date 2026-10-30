@@ -16,10 +16,13 @@
 - **Windows 构建与插件注册**：Unicode 工程路径使用 `tool/flutter_project.ps1` 的 ASCII junction。当前 Flutter 工具链在依赖变更后可能清空桌面插件链接，`pub get` 成功不代表链接保留；若因 symlink 支持中断，还可能留下空注册文件。保留依赖解析后的链接准备，失败时补跑 `pub get`，构建后用 `tool/verify_android_plugins.dart` 核对注册结果；不能仅凭 APK 编译成功判断插件可用。
 - **暂停确认时序**：桌面下载器的 `pause()` 返回只确认命令送达，续传数据可能尚未写入。继续操作需等 paused/最终事件确认并复用传输句柄，否则快速暂停后继续可能卡住。依据：`lib/services/download_manager.dart` 与延迟暂停确认回归测试。
 - **Windows Cookie 桥接**：`desktop_webview_window 0.4.0` 的 Windows 字符串转换会保留尾部 NUL，使域名和 Cookie 名匹配失败。接收层仅去除尾部 NUL，拒绝嵌入控制字符，不任意改写凭据。依据：`lib/services/browser_cookies.dart`、`test/browser_cookies_test.dart`；升级插件后重新核实。
+- **Android 下载通知**：Android 15 的 UIDT 任务曾因缺少通知被系统终止；首次通知权限可能是 denied，而非 undetermined。当前在新增/继续及安排传输前检查权限，不在启动时弹框或让插件提前恢复任务。短传输不能覆盖通知时限，历史回归使用超过 15 秒的慢传输。依据：`download_permissions.dart`、`download_manager_test.dart`。
+- **Linux FFmpeg**：插件发起的 dlopen 不能依赖主程序的 RUNPATH，随包库需要相邻库查找路径；不要用开发机的 LD_LIBRARY_PATH 掩盖分发缺库。当前 FFmpeg 插件的媒体信息桥接还会返回空轨道项，因此 `media_probe.dart` 改读同一 FFprobe 引擎的原始 JSON，仍严格核对轨道。依据：`linux/CMakeLists.txt`、`test/media_probe_test.dart`；依赖升级后重新核实。
+- **截图验收**：尺寸正确不代表渲染有内容，还要检查透明度与明暗范围。Intel macOS CI 曾产生纯黑离屏截图；当前 `Info.plist` 关闭 Impeller，验证在该渲染配置下通过。这不等于已证明真实设备窗口黑屏，升级 Flutter 后须重新验证。依据：`lib/verification/release_verification.dart` 与 macOS 配置。
 - **Android 分包版本码**：当前 Flutter 3.47.8 默认 arm64 split APK 的 versionCode 为 pubspec 构建号加 2000。`tool/verify_android_package.py` 按此校验；换 ABI、取消分包或更改版本码策略时须同步调整，不能推广为所有 APK 的规则。
 
 ## 维护与验证入口
 
 - 桌面图标源为 `assets/brand/biload.svg`；生成脚本、Linux GResource/桌面入口及 `test/desktop_icons_test.dart` 共同约束各平台资产。并发菜单焦点释放与账号页淡入回归见 `test/ui_test.dart`。
 - 目录边界、账号密文和续传记录重开见 `test/portable_storage_test.dart`；实际打包程序检查见 `tool/verify_desktop_release.py`。编译、静态检查、运行检查和设备验收的结论分开记录，无设备时不推定已实测。
-- 发布流程与固定签名要求见 `docs/RELEASES.md`，验证线索见 CI 记录与本地 `artifacts/`。`docs/DEVELOPMENT.md` 含多个版本的历史实现；旧版迁移和 macOS 沙箱安全书签已由 1.0.1 的便携存储方案取代，不能将旧段落当作当前设计。
+- 构建、验证和发布操作统一见 `README.md`。旧开发流水与历史 JSON 报告已从维护文档中移除，本地归档在 `artifacts/documentation-history/`，也可查 Git 历史；新探测结果写入 `artifacts/`，不再生成文档目录中的快照。旧版迁移和 macOS 沙箱安全书签已被便携存储方案取代，历史记录不能当作当前设计。

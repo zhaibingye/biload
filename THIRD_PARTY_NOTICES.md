@@ -15,8 +15,10 @@ biload is licensed under GPL-3.0-or-later. Dependency versions and integrity has
 | FFmpeg | Stream copying, muxing and output inspection | https://ffmpeg.org |
 | desktop_webview_window / webview_flutter | Official Bilibili login pages | https://pub.dev/packages/desktop_webview_window ; https://pub.dev/packages/webview_flutter |
 | qr_flutter | QR-code display | https://pub.dev/packages/qr_flutter |
-| file_picker / path_provider / path / url_launcher | Platform file and path integration | https://pub.dev |
+| file_picker / path_provider / path | Platform file and path integration | https://pub.dev |
 
 Flutter collects dependency license notices for the runtime license registry. Native FFmpeg bundle notices and the corresponding source/build information must also accompany public binary releases; see each upstream release's LICENSES and source artifacts. Native versions must be checked on each target using FFmpeg's version/configuration output before declaring a release validated.
+
+Native FFmpegKit 8.1.2-full-gpl release sources and build information are available in the [upstream release](https://github.com/sk3llo/ffmpeg_kit_flutter/releases/tag/8.1.2-full-gpl); Windows build sources are in [windows-8.1.2](https://github.com/sk3llo/ffmpeg-kit/tree/windows-8.1.2). Platform packages retain the applicable native license notices and corresponding source locations.
 
 The local DownKyi checkout and bilibili-API-collect documentation were used as references. Their source trees are not included in biload's application or source distribution. Runtime behavior is implemented separately and checked against live endpoints; API notes do not grant stability guarantees.

@@ -115,8 +115,8 @@ Future<void> main(List<String> args) async {
       return result;
     });
   }
-  await Directory('docs').create(recursive: true);
-  await File('docs/api-verification.json')
+  await Directory('artifacts').create(recursive: true);
+  await File('artifacts/api-verification.json')
       .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   if (results.any((r) => r['ok'] != true)) exitCode = 1;
 }

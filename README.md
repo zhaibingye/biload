@@ -52,7 +52,7 @@ AVC、HEVC、AV1 分开列出，普通、杜比与 Hi-Res 音轨按需勾选。�
 <details>
 <summary>1.0.1 更新内容</summary>
 
-**1.0.1**。统一桌面图标，修复并发数选择后的焦点底色，加入页面切换动画并精简冗余代码。桌面账号、设置、任务和缓存保存在程序旁的 `user-data`，完成的视频仍默认保存在系统“下载”目录下的 `biload`。新版本不读取或迁移旧版数据，首次使用需重新登录。[完整更新说明](docs/RELEASE_NOTES-1.0.1.md)。
+**1.0.1**。统一桌面图标，修复并发数选择后的焦点底色，加入页面切换动画并精简冗余代码。桌面账号、设置、任务和缓存保存在程序旁的 `user-data`，完成的视频仍默认保存在系统“下载”目录下的 `biload`。新版本不读取或迁移旧版数据，首次使用需重新登录。[完整更新说明](https://github.com/zhaibingye/biload/releases/tag/v1.0.1)。
 
 </details>
 
@@ -87,11 +87,13 @@ Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-
 | macOS | 13+，arm64/x64 |
 | Android | 8+，arm64 |
 
-平台目录存在不代表实机验证完成。验证状态见 [开发记录](docs/DEVELOPMENT.md)。
+平台目录存在不代表实机验证完成。验证范围见下文[验证](#验证)，各版构建结果见 [GitHub Actions](https://github.com/zhaibingye/biload/actions)。
 
 ## 开发
 
 已锁定 Flutter 3.47.8 / Dart 3.13，依赖版本记录在 `pubspec.lock`。
+
+项目约定与已验证的易错点集中在 [MEMORY.md](MEMORY.md)；操作步骤以本页为准。
 
 ```sh
 flutter pub get
@@ -100,7 +102,7 @@ flutter test
 flutter run -d windows
 ```
 
-Windows 需要 Visual Studio 的 C++ 桌面开发工具链（含 Windows SDK、CMake、ATL）。可在**管理员 PowerShell** 中运行 `tool/setup_windows.ps1 -InstallBuildTools`。脚本验证微软安装器签名。当前开发主机已安装 Build Tools 2022、MSVC、SDK、CMake 与 ATL，并通过实际 C++ 编译运行；可用 `tool/build_windows.ps1` 构建。中文 Windows 使用 UTF-8 编译选项，避免插件源码被按本地代码页误读。
+Windows 需要 Visual Studio 的 C++ 桌面开发工具链（含 Windows SDK、CMake、ATL）。可在**管理员 PowerShell** 中运行 `tool/setup_windows.ps1 -InstallBuildTools`，脚本会验证微软安装器签名；使用 `tool/build_windows.ps1` 构建。中文 Windows 使用 UTF-8 编译选项，避免插件源码被按本地代码页误读。
 
 如果插件生成因 Windows 未启用开发者模式而失败，可运行 `tool/link_plugins.ps1` 创建仅属于本工程的 NTFS 目录联接，再重新运行 `flutter pub get` 直到成功完成。Android 请使用 `tool/build_android.ps1`，它会完成依赖与插件注册检查，并为当前构建模式重新生成注册代码。
 
@@ -127,9 +129,17 @@ flutter build linux --release
 
 桌面版使用安装位置旁的 `user-data` 保存账号和队列。Windows 账号文件使用当前系统用户的 DPAPI 保护；Linux/macOS 使用 AES-GCM 和仅当前用户可读的本地密钥。macOS 需在 Mac 上使用 Xcode 构建；便携模式关闭 App Sandbox，网页登录使用不落盘的临时 WebView。
 
+## 发布
+
+- 版本号来自 `pubspec.yaml`，同步更新 `lib/app_version.dart`，一致性由测试检查。
+- 推送 `v*` 标签或手动运行 `.github/workflows/release.yml` 构建全部或指定平台。工作流生成检查产物，正式发布时上传通过验证的四端安装包。
+- 桌面程序必须运行 `python tool/verify_desktop_release.py --executable PATH_TO_EXECUTABLE`；Windows 另用待发布压缩包在本机复测。Android 使用固定私钥签名，并由 `tool/verify_android_package.py` 核对版本、证书、架构、16 KB 对齐和许可资源；CI 未签名 APK 只用于检查。
+- 分发包排除 `user-data`、`downloads` 和测试数据，保留原生库、`LICENSE`、`AUTHORS`、`THIRD_PARTY_NOTICES.md` 及平台附带的第三方许可证。FFmpeg 对应源码与构建信息见[第三方说明](THIRD_PARTY_NOTICES.md)。
+- 构建、运行检查及签名核对通过后再发布稳定版，任何失败均先修复并重验。Releases 只提供四端安装包，报告和 SHA-256 校验信息在本地或 CI 内部留存。
+
 ## 验证
 
-发布工作流运行打包后桌面程序，检查 SQLite、安装位置数据存储、账号文件加密、界面渲染、AVC/HEVC/AV1、AAC/FLAC/E-AC-3、多音轨、字节进度、缓存清理、Range 暂停续传及网页 POST/HttpOnly Cookie；同一 Linux 包在 Ubuntu 22.04/24.04 验证，同一 macOS 通用包在 Apple Silicon/Intel 验证。Android 按维护者确认范围执行静态分析、自动化测试、插件注册、签名与 16 KB 对齐检查，本轮不做实机验收。Releases 仅提供四端安装包，验证报告和校验信息内部留存，详见 [发布说明](docs/RELEASES.md)。自动化素材不含真实账号，真实短信登录和所有会员/地区内容不在本轮自动化验证的证明范围内。
+发布工作流运行打包后桌面程序，检查 SQLite、安装位置数据存储、账号文件加密、界面渲染、AVC/HEVC/AV1、AAC/FLAC/E-AC-3、多音轨、字节进度、缓存清理、Range 暂停续传及网页 POST/HttpOnly Cookie；同一 Linux 包在 Ubuntu 22.04/24.04 验证，同一 macOS 通用包在 Apple Silicon/Intel 验证。1.0.1 的 Android 验证范围为静态分析、自动化测试、插件注册、签名与 16 KB 对齐检查，未做手机实测。自动化素材不含真实账号，真实短信登录和所有会员/地区内容不在该轮自动化验证的证明范围内。
 
 ```sh
 # 公共接口与 CDN Range 实测，输出不包含 Cookie、二维码密钥或下载直链
@@ -144,7 +154,7 @@ flutter test integration_test/native_smoke_test.dart -d DEVICE_ID --no-uninstall
 
 Android 真机验证请先构建测试入口并确认 APK 包名为 `app.biload.biload.dev`。Windows 可运行 `tool/verify_android_native.ps1 -DeviceId DEVICE_ID -Network`，用 `-NetworkBvid BV19pnt6XE6d` 指定样本。脚本先构建、核对包名、保留数据安装，并禁止 Flutter 测试后的自动卸载；通过后取回报告。测试页需解锁并保持前台。历史实测通过公共目录读写、重复保存幂等、超过 15 秒的传输，以及真实视频完整下载合并和字节进度检查；测试生成的公共文件在验证后删除。
 
-公共接口结果：[api-verification.json](docs/api-verification.json)。这些结果不能替代会员权限和登录后接口验证。
+公共接口探测结果写入 `artifacts/api-verification.json`，仅代表当次公共样本结果，不能替代会员权限和登录后接口验证。
 
 UI 渲染检查覆盖 1440、390、360 像素宽度与较大字体。设置环境变量 `BILOAD_CAPTURE=1` 后运行 `flutter test test/ui_test.dart`，可在 `artifacts/ui/` 生成实际 Flutter 渲染预览。
 
