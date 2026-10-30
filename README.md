@@ -10,9 +10,9 @@
 
 在 [Releases](https://github.com/zhaibingye/biload/releases) 选择对应平台：Windows x64 解压后运行 `biload.exe`，保留同目录的 DLL、data 和 licenses；Linux x64 解压后运行 `biload`；macOS 通用包包含 Apple Silicon 与 Intel；Android 选择 arm64 APK。Android 使用固定私有签名，沿用旧版证书以支持保留数据升级。Windows 暂无商业代码签名，macOS 使用 ad-hoc 签名，尚未经过 Apple 公证，系统可能显示未知发布者提示。
 
-Windows 需要系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1、libsecret 和 Secret Service。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
+Windows 需要 [Microsoft Visual C++ v14 x64 运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) 和系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1、libsecret 和 Secret Service。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
 
-Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 network-manager`。桌面系统通常已启用 NetworkManager；安全保存账号需要已解锁的系统钥匙串。Linux 包自带 libvpx 7 与两项 AMR 库，并配置相对加载路径。
+Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 network-manager fonts-noto-cjk`。桌面系统通常已启用 NetworkManager；安全保存账号需要已解锁的系统钥匙串。Linux 包自带 libvpx 7 与两项 AMR 库，并配置相对加载路径。
 
 ## 功能
 
