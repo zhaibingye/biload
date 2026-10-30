@@ -14,4 +14,4 @@ Android CI 只生成未签名检查包，不进入正式 Releases。公开 APK �
 
 Windows 完整分发目录必须保留 DLL、data 与 licenses。FFmpegKit Windows 包附带各个 DLL 对应的许可证、来源和源代码包地址，见 `licenses/ffmpeg_kit_flutter_new/NOTICE.txt`。原生 FFmpegKit 8.1.2-full-gpl 的构建脚本与平台下载地址见 [上游发布](https://github.com/sk3llo/ffmpeg_kit_flutter/releases/tag/8.1.2-full-gpl)，Windows 构建源码见 [windows-8.1.2](https://github.com/sk3llo/ffmpeg-kit/tree/windows-8.1.2)。各平台发布时应保留相应许可信息与对应源码获取说明。
 
-最终 Releases 提供四端安装包、SHA256SUMS.txt 与验证报告压缩包。只有完整构建、运行检查及签名核对通过后才发布非预发布版本；任何检查失败都需修复后重新验证。真实短信安全验证、全部会员/地区内容与所有设备的播放行为不由这些自动化素材证明。报告不含真实 Cookie、验证码、密码或私钥。
+最终 Releases 只提供 Windows、Linux、macOS、Android 四端安装包。验证报告与 SHA-256 校验信息保留在本地或 CI 产物中，不作为公开下载附件。只有完整构建、运行检查及签名核对通过后才发布非预发布版本；任何检查失败都需修复后重新验证。真实短信安全验证、全部会员/地区内容与所有设备的播放行为不由这些自动化素材证明。报告不含真实 Cookie、验证码、密码或私钥。
