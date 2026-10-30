@@ -48,6 +48,12 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+    if ProcessInfo.processInfo.environment["BILOAD_VERIFY_RELEASE"] == "1" {
+      DispatchQueue.main.async {
+        NSApp.activate(ignoringOtherApps: true)
+        self.makeKeyAndOrderFront(nil)
+      }
+    }
   }
 
   private func activateDirectory(_ url: URL) {

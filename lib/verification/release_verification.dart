@@ -212,6 +212,32 @@ Future<void> _verify() async {
         boundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 1);
     _check(image.width > 0 && image.height > 0, 'Empty UI image');
+    final rgba = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!
+        .buffer
+        .asUint8List();
+    var minimum = 255;
+    var maximum = 0;
+    var opaque = 0;
+    for (var offset = 0; offset < rgba.length; offset += 4 * 97) {
+      if (rgba[offset + 3] < 200) continue;
+      opaque++;
+      for (var channel = 0; channel < 3; channel++) {
+        final value = rgba[offset + channel];
+        if (value < minimum) minimum = value;
+        if (value > maximum) maximum = value;
+      }
+    }
+    report['uiPixels'] = {
+      'width': image.width,
+      'height': image.height,
+      'opaqueSamples': opaque,
+      'minimum': minimum,
+      'maximum': maximum,
+    };
+    _check(
+      opaque > 100 && minimum < 200 && maximum > 220,
+      'UI raster is blank, black, or transparent',
+    );
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     await File(p.join(root.path, 'parsed-ui.png'))
         .writeAsBytes(png!.buffer.asUint8List());
