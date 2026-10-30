@@ -31,7 +31,9 @@ version = re.search(r'^version:\s*(\S+)',
                     re.MULTILINE).group(1)
 version_name, version_code = version.split('+')
 assert f"versionName='{version_name}'" in badging, 'Wrong release version'
-assert f"versionCode='{version_code}'" in badging, 'Wrong release build number'
+# Flutter adds 1000 * ABI code (2 for arm64) to split APK build numbers.
+android_version_code = 2000 + int(version_code)
+assert f"versionCode='{android_version_code}'" in badging, 'Wrong release build number'
 assert "sdkVersion:'26'" in badging, 'Minimum Android version changed'
 assert "targetSdkVersion:'36'" in badging, 'Unexpected target Android version'
 assert "native-code: 'arm64-v8a'" in badging, 'Unexpected APK architecture'
@@ -73,6 +75,7 @@ with args.apk.open('rb') as source:
         digest.update(chunk)
 report = {
     'version': version,
+    'androidVersionCode': android_version_code,
     'file': args.apk.name,
     'sizeBytes': args.apk.stat().st_size,
     'sha256': digest.hexdigest(),
