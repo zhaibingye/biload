@@ -106,6 +106,8 @@ class TestTransfer extends Fake implements Transfer {
   final Task task;
   final completed = Completer<TaskStatusUpdate>();
   final events = StreamController<TaskProgressUpdate>.broadcast();
+  Duration pauseDelay = Duration.zero;
+  int resumeCalls = 0;
   @override
   Stream<TaskProgressUpdate> get progressUpdates => events.stream;
   void emitProgress(double progress, {int expectedSize = -1}) {
@@ -123,12 +125,17 @@ class TestTransfer extends Fake implements Transfer {
   Future<TaskStatusUpdate> get result => completed.future;
   @override
   Future<bool> pause() async {
-    statusNotifier.value = TaskStatus.paused;
+    if (pauseDelay == Duration.zero) {
+      statusNotifier.value = TaskStatus.paused;
+    } else {
+      Timer(pauseDelay, () => statusNotifier.value = TaskStatus.paused);
+    }
     return true;
   }
 
   @override
   Future<bool> resume() async {
+    resumeCalls++;
     statusNotifier.value = TaskStatus.running;
     return true;
   }
@@ -621,6 +628,23 @@ void main() {
       );
     },
   );
+
+  test('resume waits for delayed native pause acknowledgement', () async {
+    final job = (await add()).single;
+    await until(() => downloader.transfers.handles.length == 1);
+    final handle = downloader.transfers.handles.values.single;
+    handle.pauseDelay = const Duration(milliseconds: 50);
+    final pausing = manager.pause(job);
+    final resuming = manager.resume(job);
+    await Future.wait([pausing, resuming]);
+    await until(() => handle.resumeCalls == 1);
+    expect(handle.statusNotifier.value, TaskStatus.running);
+    await handle.finish();
+    await until(() => downloader.transfers.handles.length == 2);
+    await downloader.transfers.handles.values.last.finish();
+    await until(() => job.isFinished);
+    expect(job.status, JobStatus.complete);
+  });
 
   test('pausing releases a queue slot and resume attaches to the same native transfer', () async {
     manager.configure(concurrent: 1);

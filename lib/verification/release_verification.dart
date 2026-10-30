@@ -139,10 +139,17 @@ Future<void> _verify() async {
     _check(store.setting('probe') == id, 'SQLite round trip');
     checks.add('sqlite');
     final vault = SecureSessionVault(key: 'biload.verification.$id');
-    await vault.write('synthetic-$id');
-    _check(await vault.read() == 'synthetic-$id', 'OS credential round trip');
-    await vault.clear();
-    _check(await vault.read() == null, 'OS credential cleanup');
+    await vault.write('synthetic-$id').timeout(const Duration(seconds: 20));
+    _check(
+      await vault.read().timeout(const Duration(seconds: 20)) ==
+          'synthetic-$id',
+      'OS credential round trip',
+    );
+    await vault.clear().timeout(const Duration(seconds: 20));
+    _check(
+      await vault.read().timeout(const Duration(seconds: 20)) == null,
+      'OS credential cleanup',
+    );
     checks.add('os-credential-vault');
     final transferStore = IsolatedTransferStore(
       p.join(root.path, 'transfers.sqlite'),
@@ -159,7 +166,7 @@ Future<void> _verify() async {
         report['nativeStack'] = '$stack';
       },
     );
-    await manager.initialize();
+    await manager.initialize().timeout(const Duration(seconds: 45));
     final output = p.join(root.path, '下载 中文 # 100%');
     final controller = BiloadController(
       api: api,

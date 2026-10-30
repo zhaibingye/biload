@@ -49,6 +49,7 @@ class DownloadManager extends ChangeNotifier {
   final Set<String> _running = {};
   final Map<String, Transfer> _transfers = {};
   final Map<String, Completer<void>> _pauseSignals = {};
+  final Map<String, Future<void>> _pausing = {};
   final Map<String, DateTime> _lastSaved = {};
   int concurrency = 2;
   bool movingFiles = false;
@@ -583,7 +584,15 @@ class DownloadManager extends ChangeNotifier {
     throw BiliException('视频流下载失败，可重试任务以更新地址。', code: code);
   }
 
-  Future<void> pause(DownloadJob job) async {
+  Future<void> pause(DownloadJob job) {
+    final pending = _pausing[job.id];
+    if (pending != null) return pending;
+    final operation = _pause(job);
+    _pausing[job.id] = operation;
+    return operation.whenComplete(() => _pausing.remove(job.id));
+  }
+
+  Future<void> _pause(DownloadJob job) async {
     if (!{
       JobStatus.queued,
       JobStatus.resolving,
@@ -594,10 +603,33 @@ class DownloadManager extends ChangeNotifier {
     final old = job.status;
     job.status = JobStatus.paused;
     final transfer = _transfers[job.id];
-    if (transfer != null && !await transfer.pause()) {
-      job.status = old;
-      throw const BiliException('当前流暂时无法暂停，请稍后重试。');
+    if (transfer != null) {
+      final acknowledged = Completer<void>();
+      void inspectStatus() {
+        final status = transfer.statusNotifier.value;
+        if ((status == TaskStatus.paused || status.isFinalState) &&
+            !acknowledged.isCompleted)
+          acknowledged.complete();
+      }
+
+      transfer.statusNotifier.addListener(inspectStatus);
+      try {
+        if (!await transfer.pause()) {
+          throw const BiliException('当前流暂时无法暂停，请稍后重试。');
+        }
+        inspectStatus();
+        // Desktop pause() acknowledges the command before the worker has
+        // written resume data. Resuming before its paused event loses the
+        // resume request, especially on macOS.
+        await acknowledged.future.timeout(const Duration(seconds: 20));
+      } catch (_) {
+        if (job.status == JobStatus.paused) job.status = old;
+        rethrow;
+      } finally {
+        transfer.statusNotifier.removeListener(inspectStatus);
+      }
     }
+    if (job.isFinished) return;
     job.message = '已暂停';
     job.bytesPerSecond = 0;
     final signal = _pauseSignals[job.id];
@@ -606,6 +638,7 @@ class DownloadManager extends ChangeNotifier {
   }
 
   Future<void> resume(DownloadJob job) async {
+    await _pausing[job.id];
     if (job.status != JobStatus.paused && job.status != JobStatus.failed) {
       return;
     }
