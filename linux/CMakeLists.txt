@@ -74,6 +74,13 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# The FFmpeg plugin dlopens its engine by soname. It lives beside that engine
+# in bundle/lib, so it needs its own lookup path; the executable's RUNPATH is
+# not inherited by dlopen calls made inside another shared library.
+set_target_properties(ffmpeg_kit_flutter_new_plugin PROPERTIES
+  BUILD_WITH_INSTALL_RPATH TRUE
+  INSTALL_RPATH "$ORIGIN")
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

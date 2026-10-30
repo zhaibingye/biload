@@ -17,6 +17,7 @@ files = {path.name: path.read_bytes() for path in root.iterdir() if path.is_file
 padding_size = 4 * 1024 * 1024
 files['slow.mp4'] = files['avc.mp4'] + struct.pack('>I4s', padding_size, b'free') + bytes(padding_size - 8)
 range_requests = []
+successful_posts = []
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
@@ -32,6 +33,8 @@ class Handler(BaseHTTPRequestHandler):
         size = int(self.headers.get('Content-Length', '0'))
         body = self.rfile.read(size)
         valid = urlparse(self.path).path == '/login/finish' and body == b'value=fixture'
+        if valid:
+            successful_posts.append('fixture')
         self.send_response(200 if valid else 400)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Set-Cookie', 'biload_fixture=fixture; HttpOnly; Path=/')
@@ -42,7 +45,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path.lstrip('/')
         if path == 'manifest.json':
             data = json.dumps({'files': {name: len(data) for name, data in files.items()},
-                               'rangeRequests': range_requests}).encode()
+                               'rangeRequests': range_requests,
+                               'successfulPosts': len(successful_posts)}).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(data)))

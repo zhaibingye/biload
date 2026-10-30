@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -13,6 +14,7 @@ import '../core/bili_api.dart';
 import '../core/models.dart';
 import '../data/local_store.dart';
 import '../services/auth_controller.dart';
+import '../services/browser_cookies.dart';
 import '../services/download_manager.dart';
 import '../ui/app.dart';
 import 'isolated_transfer_store.dart';
@@ -269,6 +271,47 @@ Future<void> _verify() async {
     checks.add('http-range-resume');
     _check(flutterErrors.isEmpty, 'Flutter errors: $flutterErrors');
     checks.add('no-flutter-errors');
+    _check(
+      await WebviewWindow.isWebviewAvailable(),
+      'Native webview unavailable',
+    );
+    final browser = await WebviewWindow.create(
+      configuration: CreateConfiguration(
+        title: 'biload · isolated web verification',
+        windows: WindowsWebviewOptions(
+          userDataFolder: p.join(root.path, 'verification-webview'),
+        ),
+      ),
+    );
+    try {
+      await browser.setOnUrlRequestCallback(
+        (url) => Uri.tryParse(url)?.origin == base.origin,
+      );
+      await browser.launch(base.resolve('login').toString());
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      var found = false;
+      while (DateTime.now().isBefore(deadline)) {
+        final cookies = await browser.getAllCookies().timeout(
+          const Duration(seconds: 5),
+        );
+        found = cookies.any(
+          (cookie) =>
+              browserCookieText(cookie.name) == 'biload_fixture' &&
+              browserCookieText(cookie.value) == 'fixture' &&
+              cookie.httpOnly,
+        );
+        if (found) break;
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+      _check(found, 'Native HttpOnly cookie retrieval failed');
+      _check(
+        integer((await manifest())['successfulPosts']) == 1,
+        'Webview navigation did not preserve the POST body',
+      );
+      checks.add('webview-post-and-httpOnly-cookie');
+    } finally {
+      await browser.close();
+    }
     client.close();
     store.close();
     transferStore.db.close();

@@ -34,7 +34,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build ${{ matrix.target }} --release
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y xvfb dbus-x11 gnome-keyring fonts-noto-cjk
+        run: sudo apt-get install -y xvfb dbus-x11 gnome-keyring fonts-noto-cjk patchelf network-manager
       - if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -58,9 +58,14 @@ jobs:
             cp "/usr/share/doc/$package/copyright" "$bundle/licenses/$package/"
             dpkg-query -W -f='${Package} ${Version}\n' "$package" > "$bundle/licenses/$package/package.txt"
           done
-          LD_LIBRARY_PATH="$bundle/lib" ldd "$bundle/biload" "$bundle/lib/libffmpegkit.so" | tee linux-runtime.txt
+          # Prebuilt engines/codecs also need a relocatable sibling lookup path.
+          for library in "$bundle"/lib/*.so*; do
+            patchelf --set-rpath '$ORIGIN' "$library"
+          done
+          ldd "$bundle/biload" "$bundle/lib/libffmpegkit.so" | tee linux-runtime.txt
           if grep -q 'not found' linux-runtime.txt; then exit 1; fi
-          LD_LIBRARY_PATH="$bundle/lib" python3 -c "import ctypes; ctypes.CDLL('$bundle/lib/libffmpegkit.so'); print('FFmpegKit runtime loaded')"
+          python3 -c "import ctypes; ctypes.CDLL('$bundle/lib/libffmpegkit.so'); print('FFmpegKit runtime loaded')"
+          sudo systemctl start NetworkManager
           xvfb-run -a dbus-run-session -- bash -c 'printf "verification\n" | gnome-keyring-daemon --unlock --components=secrets; python3 tool/verify_desktop_release.py --executable build/linux/x64/release/bundle/biload'
           tar czf "biload-$version-linux-x64.tar.gz" -C "$bundle" .
       - if: runner.os == 'macOS'
@@ -91,6 +96,38 @@ jobs:
             biload-*.tar.gz
             *-architectures.txt
             linux-runtime.txt
+          if-no-files-found: error
+  compatibility:
+    needs: desktop
+    if: inputs.target == 'all' || inputs.target == 'linux' || inputs.target == 'macos' || github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.target == 'linux' && '[{"os":"ubuntu-24.04","package":"linux-x64"}]' || inputs.target == 'macos' && '[{"os":"macos-15-intel","package":"macos-universal"}]' || '[{"os":"ubuntu-24.04","package":"linux-x64"},{"os":"macos-15-intel","package":"macos-universal"}]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: biload-${{ matrix.package }}
+          path: package
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 xvfb dbus-x11 gnome-keyring fonts-noto-cjk network-manager
+          sudo systemctl start NetworkManager
+          mkdir unpacked
+          tar xzf package/biload-*-linux-x64.tar.gz -C unpacked
+          xvfb-run -a dbus-run-session -- bash -c 'printf "verification\n" | gnome-keyring-daemon --unlock --components=secrets; python3 tool/verify_desktop_release.py --executable unpacked/biload'
+      - if: runner.os == 'macOS'
+        run: |
+          ditto -x -k package/biload-*-macos-universal.zip unpacked
+          python3 tool/verify_desktop_release.py --executable unpacked/biload.app/Contents/MacOS/biload
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ matrix.os }}
+          path: artifacts/runtime/
           if-no-files-found: error
   android:
     if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'

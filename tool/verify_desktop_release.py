@@ -63,7 +63,8 @@ try:
                 'AVC-AAC', 'HEVC-AAC', 'AV1-AAC',
                 'multi-audio-AAC-FLAC-EAC3', 'audio-only-30280',
                 'audio-only-30251', 'audio-only-30250', 'pause-resume',
-                'http-range-resume', 'no-flutter-errors'}
+                'http-range-resume', 'no-flutter-errors',
+                'webview-post-and-httpOnly-cookie'}
     if not required.issubset(report.get('checks', [])):
         raise RuntimeError('Application report is missing required checks')
 finally:
