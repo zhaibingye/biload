@@ -58,11 +58,14 @@ try:
     if not source.is_file():
         raise RuntimeError('Application stopped before writing its report')
     shutil.copy2(source, reports / 'report.json')
+    screenshot = source.with_name('parsed-ui.png')
+    if screenshot.is_file():
+        shutil.copy2(screenshot, reports / 'parsed-ui.png')
     report = json.loads(source.read_text(encoding='utf-8'))
     print(json.dumps(report, indent=2, ensure_ascii=False))
     if app.returncode != 0 or report.get('passed') is not True:
         raise RuntimeError('Packaged runtime verification failed')
-    required = {'sqlite', 'os-credential-vault', 'ui-and-default-selection',
+    required = {'sqlite', 'os-credential-vault', 'ui-and-default-selection', 'rendered-ui',
                 'AVC-AAC', 'HEVC-AAC', 'AV1-AAC',
                 'multi-audio-AAC-FLAC-EAC3', 'audio-only-30280',
                 'audio-only-30251', 'audio-only-30250', 'pause-resume',

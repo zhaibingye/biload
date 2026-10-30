@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
-import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -16,6 +17,7 @@ import '../data/local_store.dart';
 import '../services/auth_controller.dart';
 import '../services/browser_cookies.dart';
 import '../services/download_manager.dart';
+import '../services/media_probe.dart';
 import '../ui/app.dart';
 import 'isolated_transfer_store.dart';
 
@@ -167,8 +169,19 @@ Future<void> _verify() async {
       outputDirectory: output,
     );
     final flutterErrors = <String>[];
+    final asyncErrors = <String>[];
+    ui.PlatformDispatcher.instance.onError = (error, stack) {
+      asyncErrors.add('$error\n$stack');
+      return true;
+    };
     FlutterError.onError = (details) => flutterErrors.add(details.toString());
-    runApp(BiloadApp(controller: controller));
+    final boundaryKey = GlobalKey();
+    runApp(
+      RepaintBoundary(
+        key: boundaryKey,
+        child: BiloadApp(controller: controller),
+      ),
+    );
     await WidgetsBinding.instance.endOfFrame;
     await controller.parse('https://www.bilibili.com/video/BV19pnt6XE6d/');
     _check(controller.error == null, 'Controller parse: ${controller.error}');
@@ -178,6 +191,17 @@ Future<void> _verify() async {
       'Default track selection',
     );
     checks.add('ui-and-default-selection');
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await WidgetsBinding.instance.endOfFrame;
+    final boundary =
+        boundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 1);
+    _check(image.width > 0 && image.height > 0, 'Empty UI image');
+    final png = await image.toByteData(format: ui.ImageByteFormat.png);
+    await File(p.join(root.path, 'parsed-ui.png'))
+        .writeAsBytes(png!.buffer.asUint8List());
+    image.dispose();
+    checks.add('rendered-ui');
 
     Future<void> download(
       VideoVariant? video,
@@ -213,8 +237,7 @@ Future<void> _verify() async {
         '$label byte progress',
       );
       _check(await File(job.output).length() > 0, '$label published file');
-      final info = (await FFprobeKit.getMediaInformation(job.output))
-          .getMediaInformation();
+      final info = await probeMedia(job.output);
       final streams = info?.getStreams();
       _check(streams != null, '$label ffprobe');
       _check(
@@ -275,6 +298,7 @@ Future<void> _verify() async {
     );
     checks.add('http-range-resume');
     _check(flutterErrors.isEmpty, 'Flutter errors: $flutterErrors');
+    _check(asyncErrors.isEmpty, 'Unhandled asynchronous errors: $asyncErrors');
     checks.add('no-flutter-errors');
     _check(
       await WebviewWindow.isWebviewAvailable(),

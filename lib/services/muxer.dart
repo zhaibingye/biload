@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 
 import '../core/models.dart';
+import 'media_probe.dart';
 
 class MuxInput {
   const MuxInput(this.path, {this.concat = false});
@@ -91,8 +91,7 @@ class MediaMuxer {
         progressive: progressive,
       ),
     );
-    final info = (await FFprobeKit.getMediaInformation(output))
-        .getMediaInformation();
+    final info = await probeMedia(output);
     if (info == null ||
         !await File(output).exists() ||
         await File(output).length() == 0) {
