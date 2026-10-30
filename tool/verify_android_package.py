@@ -61,10 +61,14 @@ if not args.unsigned:
     certificate = match[1].lower()
     if args.certificate:
         assert certificate == args.certificate.lower(), 'Signing certificate changed'
+digest = hashlib.sha256()
+with args.apk.open('rb') as source:
+    for chunk in iter(lambda: source.read(1024 * 1024), b''):
+        digest.update(chunk)
 report = {
     'file': args.apk.name,
     'sizeBytes': args.apk.stat().st_size,
-    'sha256': hashlib.file_digest(args.apk.open('rb'), 'sha256').hexdigest(),
+    'sha256': digest.hexdigest(),
     'signed': not args.unsigned,
     'certificateSha256': certificate,
     'minSdk': 26,

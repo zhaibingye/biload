@@ -802,7 +802,7 @@ class _WorkspaceState extends State<Workspace> {
   );
 
   Future<void> chooseDirectory() => action(context, () async {
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || Platform.isMacOS) {
       final selected = await c.downloads.outputStorage.chooseDirectory();
       if (selected != null) {
         c.setDirectory(selected.directory, label: selected.label);
