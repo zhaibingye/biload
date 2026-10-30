@@ -1,8 +1,18 @@
+import 'dart:io';
+
+import 'package:biload/app_version.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../tool/verify_android_plugins.dart';
 
 void main() {
+  test('displayed release version matches the package version', () {
+    final version = RegExp(
+      r'^version:\s*(\S+)',
+      multiLine: true,
+    ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1);
+    expect(version, '$appVersion+$releaseBuildNumber');
+  });
   final metadata = <String, dynamic>{
     'plugins': {
       'android': [

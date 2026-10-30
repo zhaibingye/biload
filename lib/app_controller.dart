@@ -1,14 +1,17 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:background_downloader/background_downloader.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import 'core/bili_api.dart';
 import 'core/models.dart';
 import 'data/local_store.dart';
+import 'data/app_paths.dart';
+import 'data/transfer_store.dart';
 import 'services/auth_controller.dart';
 import 'services/download_manager.dart';
+import 'services/file_session_vault.dart';
 import 'services/output_storage.dart';
 
 class BiloadController extends ChangeNotifier {
@@ -18,6 +21,7 @@ class BiloadController extends ChangeNotifier {
     required this.downloads,
     required this.store,
     required this.outputDirectory,
+    this.dataDirectory,
   }) {
     auth.addListener(notifyListeners);
     downloads.addListener(notifyListeners);
@@ -26,6 +30,7 @@ class BiloadController extends ChangeNotifier {
   final AuthController auth;
   final DownloadManager downloads;
   final LocalStore store;
+  final String? dataDirectory;
   String outputDirectory;
   String get outputDirectoryLabel =>
       outputDirectory == OutputStorage.androidDownloads
@@ -51,36 +56,35 @@ class BiloadController extends ChangeNotifier {
         : '仅下载音频：将生成 ${selectedAudios.length} 个音频文件。';
   }
 
-  int _generation = 0;
-
   static Future<BiloadController> create() async {
-    final support = await getApplicationSupportDirectory();
-    await support.create(recursive: true);
-    final store = LocalStore(p.join(support.path, 'biload.sqlite'));
+    final paths = await AppPaths.create();
+    final store = LocalStore(paths.databasePath);
     final api = BiliApi();
-    final auth = AuthController(api, const SecureSessionVault());
-    final base = Platform.isAndroid ? null : await getDownloadsDirectory();
-    final fallback = base ?? await getApplicationDocumentsDirectory();
-    final defaultOutput = Platform.isAndroid
-        ? OutputStorage.androidDownloads
-        : p.join(fallback.path, 'biload');
-    final savedDirectory = store.setting('directory');
+    final auth = AuthController(
+      api,
+      Platform.isAndroid
+          ? const AndroidSessionVault()
+          : FileSessionVault(paths.dataDirectory),
+    );
+    final outputDirectory =
+        store.setting('directory') ?? await OutputStorage.defaultDirectory();
     final downloads = DownloadManager(
       api: api,
       store: store,
-      workDirectory: p.join(support.path, 'downloads'),
+      workDirectory: p.join(paths.cacheDirectory, 'downloads'),
+      downloader: FileDownloader(
+        persistentStorage: TransferStore(
+          p.join(paths.dataDirectory, 'transfers.sqlite'),
+        ),
+      ),
     );
     final app = BiloadController(
       api: api,
       auth: auth,
       downloads: downloads,
       store: store,
-      outputDirectory:
-          savedDirectory != null &&
-              (!Platform.isAndroid ||
-                  downloads.outputStorage.isSharedDirectory(savedDirectory))
-          ? savedDirectory
-          : defaultOutput,
+      dataDirectory: paths.dataDirectory,
+      outputDirectory: outputDirectory,
     );
     await auth.restore();
     await downloads.initialize();
@@ -103,25 +107,21 @@ class BiloadController extends ChangeNotifier {
     content = null;
     selectedVideos.clear();
     selectedAudios.clear();
-    final generation = ++_generation;
     notifyListeners();
     try {
       final ref = await api.resolveLink(input);
       final media = await api.content(ref);
-      if (generation != _generation) return;
       content = media;
       pageIndex = media.preferredPage;
       status = '正在枚举清晰度、编码和音轨';
       notifyListeners();
-      await _catalog(generation);
+      await _catalog();
     } catch (e) {
       error = e is BiliException ? e.message : '解析失败，请检查链接并重试。';
     } finally {
-      if (generation == _generation) {
-        parsing = false;
-        status = '';
-        notifyListeners();
-      }
+      parsing = false;
+      status = '';
+      notifyListeners();
     }
   }
 
@@ -139,11 +139,10 @@ class BiloadController extends ChangeNotifier {
     catalog = null;
     selectedVideos.clear();
     selectedAudios.clear();
-    final generation = ++_generation;
     status = '正在枚举此分集的版本';
     notifyListeners();
     try {
-      await _catalog(generation);
+      await _catalog();
     } catch (e) {
       error = e is BiliException ? e.message : '获取版本列表失败，请重试。';
     } finally {
@@ -153,21 +152,16 @@ class BiloadController extends ChangeNotifier {
     }
   }
 
-  Future<void> _catalog(int generation) async {
+  Future<void> _catalog() async {
     final versions = await api.catalog(page!);
-    if (generation != _generation) return;
     catalog = versions;
-    selectedVideos.clear();
-    selectedAudios.clear();
     if (versions.videos.isNotEmpty) {
       final bestQuality = versions.videos.first.quality;
       final avc = versions.videos.where(
         (v) => v.quality == bestQuality && v.codec == 7,
       );
-      selectedVideos.add((avc.isEmpty ? versions.videos.first : avc.first).key);
-      final selected = versions.videos.firstWhere(
-        (v) => selectedVideos.contains(v.key),
-      );
+      final selected = avc.firstOrNull ?? versions.videos.first;
+      selectedVideos.add(selected.key);
       if (selected.progressive) return;
     }
     final aac = versions.audios.where((a) => a.codecs.startsWith('mp4a'));

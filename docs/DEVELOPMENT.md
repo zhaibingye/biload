@@ -63,7 +63,7 @@
 
 0.1.0 在上述实机启动时出现 JNI 未初始化的原生崩溃：`JNI is not initialized`。检查发现 Android 的 `GeneratedPluginRegistrant.registerWith()` 是空方法，JNI 等原生插件没有注册。此前 Windows 缺少符号链接权限导致 `flutter pub get` 在生成注册文件前中断；构建脚本补建目录联接后直接以 `--no-pub` 构建，打包成功但沿用了不完整的注册文件。
 
-构建脚本现会在补建联接后重新完成 `flutter pub get`，并让 Flutter 在构建时按 debug/release 模式重新生成注册代码，避免将开发专用插件带入 release。`tool/verify_android_plugins.dart` 在构建前后对照依赖元数据检查原生插件，本次 release 已检查 9 个运行时插件。新测试覆盖空注册文件、运行时插件齐全和 debug 开发插件缺失。0.1.0 包保留为历史产物，应使用 0.1.1 或后续修复版。
+构建脚本会在补建联接后重新完成 `flutter pub get`，并让 Flutter 在构建时按 debug/release 模式重新生成注册代码，避免将开发专用插件带入 release。`tool/verify_android_plugins.dart` 在构建后对照依赖元数据检查原生插件，最初修复的 release 已检查 9 个运行时插件。测试覆盖空注册文件、运行时插件齐全和 debug 开发插件缺失。0.1.0 包保留为历史产物，应使用 0.1.1 或后续修复版。
 
 ## Android 登录验证码加载排查
 
@@ -116,3 +116,27 @@ Linux 上游媒体信息桥接返回含空项的 streams，导致合并后轨道
 Android 固定签名迁移保留旧证书，正式构建不再使用 CI 临时开发密钥。macOS 自选目录通过 NSOpenPanel 授权、安全书签保存与启动恢复，保留 App Sandbox；系统范围统一为 13+。版本、作者信息与发布流程统一，验证细节以正式 Release 附件为准。
 
 发布前逐张检查截图发现 Intel macOS 的 Impeller 离屏截图全黑，原检查仅验证尺寸，未识别无内容图像。新增像素透明度和明暗范围检查，空白/纯黑/透明画面不能通过；macOS 采用 Flutter 官方支持的 `FLTEnableImpeller=false`，使用 Skia Metal 后端，并让验证窗口获得前台状态。该截图异常本身不等同于已证明真实设备窗口黑屏，后续以重新运行结果为准。
+
+## 2026-10-30 桌面图标与代码精简
+
+解析与分集切换已有 `parsing/adding` 互斥，因此移除不可达的代次失效判断、重复清空选择和重复版本查找。下载缓存校验统一使用一次文件 stat，状态守卫改为同步调用，结束工作线程时释放保存节流记录。Windows/Android 构建共用路径联接与依赖准备逻辑；Android 保留构建后原生插件注册检查，移除构建前重复检查和依赖已就绪后的重复联接创建。清理 pubspec 与 Linux 无操作生命周期模板。
+
+Windows ICO 与 macOS 七张 AppIcon 原先仍是 Flutter 模板，现从 `assets/brand/biload.svg` 统一生成。Windows ICO 包含 16/24/32/48/64/128/256 七种尺寸；macOS 十个图标槽位均检查图片尺寸和品牌颜色。Linux 原先未设置图标，现通过 GResource 嵌入同一 SVG 并配置 GTK 图标名，同时随包提供匹配应用 ID 的 desktop 入口与 hicolor 图标。GTK 图标资源路径按 [官方接口说明](https://docs.gtk.org/gtk3/method.IconTheme.add_resource_path.html)配置；Wayland 桌面识别仍需将启动器与图标安装至 XDG 数据目录。
+
+并发数下拉选择完成后释放该控件的焦点，避免 Windows 持续显示灰色焦点底色；键盘打开选择器时仍保留焦点提示。页面切换加入 200ms 淡入淡出，内容顶部对齐并遵循系统减少动画设置。移除链接输入框下的三个说明标签。
+
+本机验证：格式检查、静态分析、67 项 Flutter 测试通过；Windows Release 构建及打包后 15 项原生回归通过，覆盖 SQLite、系统凭据存储、UI 渲染、AVC/HEVC/AV1、AAC/FLAC/EAC3 多音轨、纯音频、暂停与 Range 续传、WebView POST 与 HttpOnly Cookie。使用独立测试账号和内存数据库的原生窗口实测标题栏图标、账号跳转、并发数 2→3 后底色消失以及标签移除；测试窗口已关闭。用户原有安装与账号数据保留。
+
+Linux/macOS 本轮仅做资源、构建配置与桌面入口静态检查，未在对应系统编译或运行；Android 静态核对 9 个运行时原生插件注册，未进行手机测试。验证摘要及本地 Windows 便携包 SHA-256 见 `desktop-optimization-verification.json`，详细日志位于本地忽略的 `artifacts/optimization-*`。
+
+## 2026-10-30 安装位置保存用户数据
+
+按维护者要求，新版本从空数据开始，移除旧版任务扫描、文件迁移、迁移清理凭据及对应 UI/测试；旧目录和旧凭据均不读取、不迁移、不清理。桌面端的 `user-data` 固定在可执行文件旁（macOS 在 `.app` 旁），默认成品目录保留为各系统“下载”目录下的 `biload`，也可由用户另选目录。目录不可写时明确提示改用可写的安装位置，保留单一路径。设置页展示实际路径，提供打开文件夹与清理已结束任务缓存入口；关闭程序后删除 `user-data` 可重置个人数据。
+
+SQLite 设置/任务与原生下载调度、暂停/续传记录都使用此目录。下载插件的临时传输目录显式设置在本地缓存下，避免另写系统临时目录。Windows WebView2 使用该目录内的专用 profile；Linux 在进程初始化时固定 GLib 的 XDG 数据/配置/缓存目录，并恢复原始环境以免影响外部播放器。macOS 便携版关闭 App Sandbox，移除系统 UserDefaults 安全书签；选定目录直接保存到本地设置，登录窗口使用不落盘的 WKWebsiteDataStore。
+
+桌面账号采用本地加密文件：Windows 使用当前用户的 DPAPI 保护，Linux/macOS 使用 AES-GCM、随机 nonce 和当前用户独占权限的本地密钥。Windows 的加密文件通常需要在原系统用户下读取，跨电脑使用时重新登录。Android 的 APK 安装区只读，使用应用目录内新的 `user-data` 与新会话存储键，保留系统管理方式和公共下载目录；不处理旧位置残留。
+
+移除未再使用的 url_launcher 依赖和旧 Android 文件导出通道，保留当前存储选择器与权限回调。依赖变化的实际构建暴露了 Flutter 在报告 pub get 成功后仍可能清空插件链接的情况；共享构建准备现统一创建一次目录联接，再按需补完失败的 pub get，确保插件注册完整。
+
+本机验证范围包括：72 项自动化测试、静态分析、Windows Release 构建、安装位置与账号密文读写/覆盖/重开/清除、17 项打包程序原生回归，以及正常启动后无旧账号、设置页数据路径、中文目录的资源管理器打开。Linux/macOS 仅静态检查；Android 静态核对 8 个运行时原生插件与存储回调，未做手机测试。新分发包排除所有运行生成的 `user-data`、`downloads` 和验证数据，详情见 `portable-storage-verification.json`。

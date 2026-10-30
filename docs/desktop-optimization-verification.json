@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-30",
+  "version": "1.0.0+7",
+  "status": "local-working-tree-verification",
+  "automated": {
+    "flutterAnalyze": "passed",
+    "dartFormat": "passed",
+    "flutterTests": 67,
+    "windowsIcoSizes": [
+      16,
+      24,
+      32,
+      48,
+      64,
+      128,
+      256
+    ],
+    "macosAppIconSlots": 10,
+    "iconRegeneration": "reproducible",
+    "powerShellSyntax": "passed"
+  },
+  "windows": {
+    "releaseBuild": "passed",
+    "packagedRuntime": "passed",
+    "runtimeChecks": [
+      "sqlite",
+      "os-credential-vault",
+      "ui-and-default-selection",
+      "rendered-ui",
+      "AVC-AAC",
+      "HEVC-AAC",
+      "AV1-AAC",
+      "multi-audio-AAC-FLAC-EAC3",
+      "audio-only-30280",
+      "audio-only-30251",
+      "audio-only-30250",
+      "pause-resume",
+      "http-range-resume",
+      "no-flutter-errors",
+      "webview-post-and-httpOnly-cookie"
+    ],
+    "finishedUtc": "2026-10-30T11:07:01.451107Z",
+    "interactiveUi": [
+      "native-titlebar-brand-icon",
+      "signed-in-account-navigation",
+      "concurrency-2-to-3-releases-focus-and-gray-background",
+      "redundant-link-tags-removed"
+    ],
+    "isolation": "Synthetic account; in-memory UI data and separate runtime databases, outputs and vault key."
+  },
+  "otherPlatforms": {
+    "linux": {
+      "mode": "static-only",
+      "checks": [
+        "embedded-SVG-resource",
+        "CMake-resource-compilation-and-install",
+        "GTK-icon-name",
+        "desktop-entry-icon-and-app-ID"
+      ]
+    },
+    "macos": {
+      "mode": "static-only",
+      "checks": [
+        "AppIcon-build-config-debug-profile-release",
+        "Info.plist-valid"
+      ]
+    },
+    "android": {
+      "mode": "static-only",
+      "checks": [
+        "shared-Dart-tests",
+        "icons-unchanged"
+      ]
+    },
+    "pubspec": "semantically-identical"
+  },
+  "androidNativeRegistration": {
+    "mode": "static-only",
+    "runtimePlugins": 9,
+    "result": "passed"
+  },
+  "package": {
+    "file": "artifacts\\biload-1.0.0-windows-x64-optimized.zip",
+    "bytes": 62696166,
+    "sha256": "09a44f26e0cc9ad4a131a48cd20255def872ea27d38b8b823e130814b844dc27",
+    "entries": 247,
+    "licenseFiles": 123
+  },
+  "limitations": [
+    "Linux and macOS build/runtime were not executed on this Windows host.",
+    "Android device testing was not performed in this round.",
+    "Existing installed Windows application was not replaced."
+  ]
+}

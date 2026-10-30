@@ -3,49 +3,44 @@ import 'dart:convert';
 import 'package:background_downloader/background_downloader.dart' hide Database;
 import 'package:sqlite3/sqlite3.dart';
 
-/// Runtime verification must never rehydrate or clean a user's transfer queue.
-/// This store is only selected by the explicit desktop verification entry point.
-class IsolatedTransferStore implements PersistentStorage {
-  IsolatedTransferStore(String path) : db = sqlite3.open(path) {
+/// Download state stays beside the application database.
+class TransferStore implements PersistentStorage {
+  TransferStore(String path) : db = sqlite3.open(path) {
     db.execute(
-      'CREATE TABLE IF NOT EXISTS verification_transfers (kind TEXT, id TEXT, data TEXT NOT NULL, PRIMARY KEY(kind,id))',
+      'CREATE TABLE IF NOT EXISTS transfers (kind TEXT, id TEXT, data TEXT NOT NULL, PRIMARY KEY(kind,id))',
     );
   }
   final Database db;
   void put(String kind, String id, Map<String, dynamic> data) => db.execute(
-    'INSERT OR REPLACE INTO verification_transfers VALUES (?,?,?)',
+    'INSERT OR REPLACE INTO transfers VALUES (?,?,?)',
     [kind, id, jsonEncode(data)],
   );
   Map<String, dynamic>? get(String kind, String id) {
-    final rows = db.select(
-      'SELECT data FROM verification_transfers WHERE kind=? AND id=?',
-      [kind, id],
-    );
+    final rows = db.select('SELECT data FROM transfers WHERE kind=? AND id=?', [
+      kind,
+      id,
+    ]);
     return rows.isEmpty
         ? null
         : jsonDecode(rows.single['data'] as String) as Map<String, dynamic>;
   }
 
   List<Map<String, dynamic>> all(String kind) => [
-    for (final row in db.select(
-      'SELECT data FROM verification_transfers WHERE kind=?',
-      [kind],
-    ))
+    for (final row in db.select('SELECT data FROM transfers WHERE kind=?', [
+      kind,
+    ]))
       jsonDecode(row['data'] as String) as Map<String, dynamic>,
   ];
   void remove(String kind, String? id) {
     if (id == null) {
-      db.execute('DELETE FROM verification_transfers WHERE kind=?', [kind]);
+      db.execute('DELETE FROM transfers WHERE kind=?', [kind]);
     } else {
-      db.execute('DELETE FROM verification_transfers WHERE kind=? AND id=?', [
-        kind,
-        id,
-      ]);
+      db.execute('DELETE FROM transfers WHERE kind=? AND id=?', [kind, id]);
     }
   }
 
   @override
-  (String, int) get currentDatabaseVersion => ('biload-verification', 1);
+  (String, int) get currentDatabaseVersion => ('biload-transfers', 1);
   @override
   Future<(String, int)> get storedDatabaseVersion async =>
       currentDatabaseVersion;

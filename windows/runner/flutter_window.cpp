@@ -3,6 +3,7 @@
 #include <optional>
 #include <flutter/standard_method_codec.h>
 #include <shellapi.h>
+#include <dpapi.h>
 #include <filesystem>
 #include <string>
 
@@ -33,7 +34,28 @@ bool FlutterWindow::OnCreate() {
       flutter_controller_->engine()->messenger(), "app.biload/platform",
       &flutter::StandardMethodCodec::GetInstance());
   platform_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
-    if (call.method_name() != "storageOpen") {
+    if (call.method_name() == "protectSession" || call.method_name() == "unprotectSession") {
+      const auto* bytes = std::get_if<std::vector<uint8_t>>(call.arguments());
+      if (!bytes || bytes->empty()) {
+        result->Error("session_data", "账号数据无效。");
+        return;
+      }
+      DATA_BLOB input{static_cast<DWORD>(bytes->size()), const_cast<BYTE*>(bytes->data())};
+      DATA_BLOB output{};
+      const BOOL success = call.method_name() == "protectSession"
+          ? CryptProtectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)
+          : CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output);
+      if (!success) {
+        result->Error("session_protection", "无法加密或读取本机账号数据，请重新登录。");
+        return;
+      }
+      std::vector<uint8_t> protected_bytes(output.pbData, output.pbData + output.cbData);
+      LocalFree(output.pbData);
+      result->Success(flutter::EncodableValue(protected_bytes));
+      return;
+    }
+    const bool open_directory = call.method_name() == "storageOpenDirectory";
+    if (call.method_name() != "storageOpen" && !open_directory) {
       result->NotImplemented();
       return;
     }
@@ -58,8 +80,10 @@ bool FlutterWindow::OnCreate() {
         static_cast<int>(path->size()), wide_path.data(), length);
     const std::filesystem::path file(wide_path);
     std::error_code error;
-    if (!file.is_absolute() || !std::filesystem::is_regular_file(file, error)) {
-      result->Error("missing_file", "文件已被移动或删除。");
+    const bool exists = open_directory ? std::filesystem::is_directory(file, error)
+        : std::filesystem::is_regular_file(file, error);
+    if (!file.is_absolute() || !exists) {
+      result->Error("missing_file", open_directory ? "文件夹已被移动或删除。" : "文件已被移动或删除。");
       return;
     }
     SHELLEXECUTEINFOW info{};

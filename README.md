@@ -50,9 +50,9 @@ AVC、HEVC、AV1 分开列出，普通、杜比与 Hi-Res 音轨按需勾选。�
 </details>
 
 <details>
-<summary>1.0.0 更新内容</summary>
+<summary>1.0.1 更新内容</summary>
 
-**1.0.0**。Android 默认保存到公共 `Download/biload`，可更改目录；完成后清理临时文件，旧版文件可迁移。进度按所选音视频流的总字节计算。Windows 修复网页登录状态识别和中文文件路径打开；Linux 修复 FFmpeg 动态库加载与轨道信息读取；修复快速暂停后继续可能卡住的问题。
+**1.0.1**。统一桌面图标，修复并发数选择后的焦点底色，加入页面切换动画并精简冗余代码。桌面账号、设置、任务和缓存保存在程序旁的 `user-data`，完成的视频仍默认保存在系统“下载”目录下的 `biload`。新版本不读取或迁移旧版数据，首次使用需重新登录。[完整更新说明](docs/RELEASE_NOTES-1.0.1.md)。
 
 </details>
 
@@ -60,9 +60,9 @@ AVC、HEVC、AV1 分开列出，普通、杜比与 Hi-Res 音轨按需勾选。�
 
 在 [Releases](https://github.com/zhaibingye/biload/releases) 选择对应平台：Windows x64 解压后运行 `biload.exe`，保留同目录的 DLL、data 和 licenses；Linux x64 解压后运行 `biload`；macOS 通用包包含 Apple Silicon 与 Intel；Android 选择 arm64 APK。Android 使用固定私有签名，沿用旧版证书以支持保留数据升级。Windows 暂无商业代码签名，macOS 使用 ad-hoc 签名，尚未经过 Apple 公证，系统可能显示未知发布者提示。
 
-Windows 需要 [Microsoft Visual C++ v14 x64 运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) 和系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1、libsecret 和 Secret Service。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
+Windows 需要 [Microsoft Visual C++ v14 x64 运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) 和系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1 和 libsecret。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
 
-Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 network-manager fonts-noto-cjk`。桌面系统通常已启用 NetworkManager；安全保存账号需要已解锁的系统钥匙串。Linux 包自带 libvpx 7 与两项 AMR 库，并配置相对加载路径。
+Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 network-manager fonts-noto-cjk`。桌面系统通常已启用 NetworkManager。Linux 包自带 libvpx 7 与两项 AMR 库，并配置相对加载路径。
 
 ## 功能
 
@@ -73,7 +73,7 @@ Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-
 - 持久下载队列、暂停/恢复、有限重试、地址过期重新解析、恢复中断任务；规格变化时报告错误。
 - 按下载字节统计百分比与剩余大小，大小未知时显示不确定进度；下载完成后单独显示合并/保存阶段。支持 Wi-Fi 与移动网络。
 - 二维码登录；网页、短信和密码入口使用 B 站官方登录页面与人机验证。
-- 系统安全存储保存会话，SQLite 保存任务。账号密码不经过 biload 自建表单，不保存密码。
+- 桌面账号加密保存在安装位置的 `user-data`，Android 使用系统安全存储；SQLite 保存任务。账号密码不经过 biload 自建表单，不保存密码。
 - 登录后点击顶部账号入口查看头像、昵称、UID 和会员状态；可检查状态、切换账号或退出。
 - Android 原生后台传输、通知和文件导出。应用进程被结束后，重启时恢复剩余流程。
 - 拒绝 DRM 和明确标记为试看的内容。仅处理当前账号有权访问的完整未加密流。
@@ -104,6 +104,8 @@ Windows 需要 Visual Studio 的 C++ 桌面开发工具链（含 Windows SDK、C
 
 如果插件生成因 Windows 未启用开发者模式而失败，可运行 `tool/link_plugins.ps1` 创建仅属于本工程的 NTFS 目录联接，再重新运行 `flutter pub get` 直到成功完成。Android 请使用 `tool/build_android.ps1`，它会完成依赖与插件注册检查，并为当前构建模式重新生成注册代码。
 
+桌面图标统一来自 `assets/brand/biload.svg`。更新品牌后，安装开发工具 `python -m pip install resvg-py Pillow`，再运行 `python tool/generate_desktop_icons.py` 生成 Windows 多尺寸 ICO 和 macOS AppIcon。Linux 直接将 SVG 编译进程序，构建包同时包含 `share/applications` 和 `share/icons`；制作桌面安装包时将它们放入对应 XDG 数据目录，并确保启动器的 `Exec=biload` 可在 PATH 中找到程序，供 Wayland 等桌面环境识别应用。
+
 Android 需要 JDK 17、SDK 36、Build Tools 36.0.0、NDK 28.2.13676358。Windows 用户可运行 `tool/setup_android.ps1` 安装用户目录下的 SDK；该脚本从 Google 下载命令行工具并核对 SHA-256。
 
 ```sh
@@ -123,11 +125,11 @@ sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1
 flutter build linux --release
 ```
 
-Linux 登录状态持久化需要运行中的 Secret Service / 系统钥匙串。macOS 需在 Mac 上使用 Xcode 构建；自选目录通过系统选择器授予读写权限，并以安全书签在下次启动时恢复。
+桌面版使用安装位置旁的 `user-data` 保存账号和队列。Windows 账号文件使用当前系统用户的 DPAPI 保护；Linux/macOS 使用 AES-GCM 和仅当前用户可读的本地密钥。macOS 需在 Mac 上使用 Xcode 构建；便携模式关闭 App Sandbox，网页登录使用不落盘的临时 WebView。
 
 ## 验证
 
-发布工作流运行打包后桌面程序，检查 SQLite、系统凭据存储、界面渲染、AVC/HEVC/AV1、AAC/FLAC/E-AC-3、多音轨、字节进度、缓存清理、Range 暂停续传及网页 POST/HttpOnly Cookie；同一 Linux 包在 Ubuntu 22.04/24.04 验证，同一 macOS 通用包在 Apple Silicon/Intel 验证。Android 按维护者确认范围执行静态分析、自动化测试、插件注册、签名与 16 KB 对齐检查，本轮不做实机验收。报告随 Releases 提供，详见 [发布说明](docs/RELEASES.md)。自动化素材不含真实账号，真实短信登录和所有会员/地区内容不在本轮自动化验证的证明范围内。
+发布工作流运行打包后桌面程序，检查 SQLite、安装位置数据存储、账号文件加密、界面渲染、AVC/HEVC/AV1、AAC/FLAC/E-AC-3、多音轨、字节进度、缓存清理、Range 暂停续传及网页 POST/HttpOnly Cookie；同一 Linux 包在 Ubuntu 22.04/24.04 验证，同一 macOS 通用包在 Apple Silicon/Intel 验证。Android 按维护者确认范围执行静态分析、自动化测试、插件注册、签名与 16 KB 对齐检查，本轮不做实机验收。报告随 Releases 提供，详见 [发布说明](docs/RELEASES.md)。自动化素材不含真实账号，真实短信登录和所有会员/地区内容不在本轮自动化验证的证明范围内。
 
 ```sh
 # 公共接口与 CDN Range 实测，输出不包含 Cookie、二维码密钥或下载直链
@@ -140,7 +142,7 @@ flutter test integration_test/native_smoke_test.dart -d DEVICE_ID --no-uninstall
 flutter test integration_test/native_smoke_test.dart -d DEVICE_ID --no-uninstall --dart-define=BILOAD_NETWORK_SMOKE=true
 ```
 
-Android 真机验证请先构建测试入口并确认 APK 包名为 `app.biload.biload.dev`。Windows 可运行 `tool/verify_android_native.ps1 -DeviceId DEVICE_ID -Network`，用 `-NetworkBvid BV19pnt6XE6d` 指定样本。脚本先构建、核对包名、保留数据安装，并禁止 Flutter 测试后的自动卸载；通过后取回报告。测试页需解锁并保持前台。已通过公共目录读写、重复保存幂等、旧文件迁移清理、超过 15 秒的传输，以及真实视频完整下载合并和字节进度检查；测试生成的公共文件在验证后删除。
+Android 真机验证请先构建测试入口并确认 APK 包名为 `app.biload.biload.dev`。Windows 可运行 `tool/verify_android_native.ps1 -DeviceId DEVICE_ID -Network`，用 `-NetworkBvid BV19pnt6XE6d` 指定样本。脚本先构建、核对包名、保留数据安装，并禁止 Flutter 测试后的自动卸载；通过后取回报告。测试页需解锁并保持前台。历史实测通过公共目录读写、重复保存幂等、超过 15 秒的传输，以及真实视频完整下载合并和字节进度检查；测试生成的公共文件在验证后删除。
 
 公共接口结果：[api-verification.json](docs/api-verification.json)。这些结果不能替代会员权限和登录后接口验证。
 
@@ -148,7 +150,9 @@ UI 渲染检查覆盖 1440、390、360 像素宽度与较大字体。设置环�
 
 Android 文件默认保存在系统下载文件夹中的 `biload` 目录，可在设置中通过系统选择器更改，并持久保留目录授权。Android 10+ 使用公共下载接口写入，Android 8/9 首次保存时申请存储权限。完成的视频可在系统文件管理器中删除，卸载 biload 后仍保留；下载中的临时数据保存在应用目录，完成后自动清理。
 
-设置中的“迁移旧版文件”会先保存到当前下载目录、更新任务记录，再删除旧原件。旧目录中没有任务记录的媒体文件也会被发现并纳入迁移。暂停和失败的下载数据默认保留以供继续；手动清理已结束任务的临时文件时，失败任务的缓存也会移除，重试时重新下载。
+桌面版的 `user-data` 与程序放在同一安装位置（macOS 放在 `.app` 旁），包含账号、设置、队列、续传记录及缓存；视频默认保存到各系统“下载”目录下的 `biload`，也可自行选择其他下载目录。在“账号与设置”中可直接打开用户数据文件夹或清理已结束任务的缓存；关闭软件后删除 `user-data` 即可重置账号和设置。安装位置不可写时会提示更换可写的解压位置，不会自动改存隐藏目录。
+
+新版本不读取、兼容或迁移旧版账号、设置、任务与文件，也不扫描或清理旧目录，首次使用需重新登录。暂停和失败的当前任务缓存默认保留以供继续；手动清理已结束任务缓存后，失败任务重试时会重新下载。Android 的 APK 安装区只读，应用数据由系统在应用目录中管理，可在系统设置中清除应用数据。
 
 ## 代码结构
 

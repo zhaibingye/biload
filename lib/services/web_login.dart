@@ -6,11 +6,11 @@ import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../core/link_parser.dart';
 import '../core/models.dart';
+import '../data/app_paths.dart';
 import 'browser_cookies.dart';
 
 const platformChannel = MethodChannel('app.biload/platform');
@@ -40,13 +40,25 @@ Future<BiliSession?> openOfficialLogin(
       MaterialPageRoute(builder: (_) => _AndroidLoginPage(mode: mode)),
     );
   }
+  if (Platform.isMacOS) {
+    final result = await platformChannel.invokeMethod<Map<Object?, Object?>>(
+      'officialLogin',
+      {'url': officialLoginUrl, 'title': 'biload · $mode（B站官方页面）'},
+    );
+    return result == null
+        ? null
+        : BiliSession(
+            cookies: Map<String, String>.from(result['cookies'] as Map),
+            refreshToken: result['refreshToken'] as String? ?? '',
+          );
+  }
   if (!await WebviewWindow.isWebviewAvailable()) {
     throw const BiliException(
       '系统网页组件不可用。Windows 请安装 WebView2，Linux 请安装 WebKitGTK 4.1。',
     );
   }
-  final support = await getApplicationSupportDirectory();
-  final profile = p.join(support.path, 'login-webview');
+  final paths = await AppPaths.create();
+  final profile = paths.webviewDirectory;
   final windows = WindowsWebviewOptions(
     userDataFolder: profile,
     denyCameraAndMicrophone: true,
@@ -123,7 +135,7 @@ Future<BiliSession?> openOfficialLogin(
       await browser.close();
     } catch (_) {}
     // This is the dedicated login profile, never the user's normal browser profile.
-    if (p.isWithin(support.path, profile)) {
+    if (p.isWithin(paths.dataDirectory, profile)) {
       try {
         await WebviewWindow.clearAll(windows: windows);
       } catch (_) {}

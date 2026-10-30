@@ -10,18 +10,21 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
+import '../app_version.dart';
 import '../core/bili_api.dart';
 import '../core/models.dart';
 import '../data/local_store.dart';
+import '../data/app_paths.dart';
+import '../data/transfer_store.dart';
 import '../services/auth_controller.dart';
 import '../services/browser_cookies.dart';
 import '../services/download_manager.dart';
+import '../services/file_session_vault.dart';
 import '../services/media_probe.dart';
 import '../ui/app.dart';
-import 'isolated_transfer_store.dart';
 
 /// Opt-in verification of the packaged desktop executable, with synthetic media
 /// and separate databases, outputs, and credentials. Never restores a user login.
@@ -105,6 +108,7 @@ class _FixtureApi extends BiliApi {
 
 Future<void> _verify() async {
   final report = <String, dynamic>{
+      'version': '$appVersion+$releaseBuildNumber',
     'platform': Platform.operatingSystem,
     'started': DateTime.now().toUtc().toIso8601String(),
     'checks': <String>[],
@@ -121,10 +125,15 @@ Future<void> _verify() async {
       base.scheme == 'http' && base.host == '127.0.0.1',
       'Verification only accepts loopback fixtures',
     );
-    root = Directory(
-      p.join((await getApplicationSupportDirectory()).path, 'verification', id),
-    );
+    final paths = await AppPaths.create();
+    root = Directory(p.join(paths.dataDirectory, 'verification', id));
     await root.create(recursive: true);
+    _check(
+      p.isWithin(paths.installDirectory, root.path),
+      'Data escaped the installation directory',
+    );
+    report['dataDirectory'] = paths.dataDirectory;
+    checks.add('installation-local-data');
     stdout.writeln('BILOAD_RELEASE_REPORT=${p.join(root.path, 'report.json')}');
     await stdout.flush();
     final client = HttpClient();
@@ -140,28 +149,37 @@ Future<void> _verify() async {
     store.setSetting('probe', id);
     _check(store.setting('probe') == id, 'SQLite round trip');
     checks.add('sqlite');
-    final vault = SecureSessionVault(key: 'biload.verification.$id');
+    final vault = FileSessionVault(root.path);
     await vault.write('synthetic-$id').timeout(const Duration(seconds: 20));
     _check(
       await vault.read().timeout(const Duration(seconds: 20)) ==
           'synthetic-$id',
-      'OS credential round trip',
+      'Local encrypted account round trip',
+    );
+    _check(
+      !utf8
+          .decode(await vault.file.readAsBytes(), allowMalformed: true)
+          .contains('synthetic-$id'),
+      'Account was stored as plaintext',
+    );
+    await vault.write('updated-$id');
+    _check(
+      await FileSessionVault(root.path).read() == 'updated-$id',
+      'Account overwrite and reopen',
     );
     await vault.clear().timeout(const Duration(seconds: 20));
     _check(
       await vault.read().timeout(const Duration(seconds: 20)) == null,
-      'OS credential cleanup',
+      'Local account cleanup',
     );
-    checks.add('os-credential-vault');
+    checks.add('local-session-vault');
     final version = await FFmpegKit.executeWithArguments(['-version']);
     _check(
       ReturnCode.isSuccess(await version.getReturnCode()),
       'Native FFmpeg version command',
     );
     report['ffmpegVersionAndConfiguration'] = await version.getOutput();
-    final transferStore = IsolatedTransferStore(
-      p.join(root.path, 'transfers.sqlite'),
-    );
+    final transferStore = TransferStore(p.join(root.path, 'transfers.sqlite'));
     final downloader = FileDownloader(persistentStorage: transferStore);
     final manager = DownloadManager(
       api: api,
@@ -182,6 +200,7 @@ Future<void> _verify() async {
       downloads: manager,
       store: store,
       outputDirectory: output,
+      dataDirectory: root.path,
     );
     final flutterErrors = <String>[];
     final asyncErrors = <String>[];
@@ -269,6 +288,15 @@ Future<void> _verify() async {
         await manager.pause(job);
         await _until(() => !manager.hasActiveWorkers, 'paused worker');
         _check(job.status == JobStatus.paused, 'Paused state');
+        final resumeData = await transferStore.retrieveAllResumeData();
+        _check(
+          resumeData.isNotEmpty &&
+              resumeData.every(
+                (data) => p.isWithin(root!.path, data.tempFilepath),
+              ),
+          'Native resume cache escaped user-data',
+        );
+        checks.add('local-native-transfer-cache');
         await manager.resume(job);
       }
       await _until(() => job.isFinished, label);
@@ -345,43 +373,56 @@ Future<void> _verify() async {
       await WebviewWindow.isWebviewAvailable(),
       'Native webview unavailable',
     );
-    final browser = await WebviewWindow.create(
-      configuration: CreateConfiguration(
-        title: 'biload · isolated web verification',
-        windows: WindowsWebviewOptions(
-          userDataFolder: p.join(root.path, 'verification-webview'),
-        ),
-      ),
-    );
-    try {
-      await browser.setOnUrlRequestCallback(
-        (url) => Uri.tryParse(url)?.origin == base.origin,
-      );
-      await browser.launch(base.resolve('login').toString());
-      final deadline = DateTime.now().add(const Duration(seconds: 30));
-      var found = false;
-      while (DateTime.now().isBefore(deadline)) {
-        final cookies = await browser.getAllCookies().timeout(
-          const Duration(seconds: 5),
-        );
-        found = cookies.any(
-          (cookie) =>
-              browserCookieText(cookie.name) == 'biload_fixture' &&
-              browserCookieText(cookie.value) == 'fixture' &&
-              cookie.httpOnly,
-        );
-        if (found) break;
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      }
-      _check(found, 'Native HttpOnly cookie retrieval failed');
+    if (Platform.isMacOS) {
+      final result = await const MethodChannel('app.biload/platform')
+          .invokeMethod<Map<Object?, Object?>>('verifyLoginBrowser', {
+            'url': base.resolve('login').toString(),
+            'title': 'biload · isolated web verification',
+          })
+          .timeout(const Duration(seconds: 30));
       _check(
-        integer((await manifest())['successfulPosts']) == 1,
-        'Webview navigation did not preserve the POST body',
+        result?['value'] == 'fixture' && result?['httpOnly'] == true,
+        'Ephemeral native HttpOnly cookie retrieval failed',
       );
-      checks.add('webview-post-and-httpOnly-cookie');
-    } finally {
-      await browser.close();
+    } else {
+      final browser = await WebviewWindow.create(
+        configuration: CreateConfiguration(
+          title: 'biload · isolated web verification',
+          windows: WindowsWebviewOptions(
+            userDataFolder: p.join(root.path, 'verification-webview'),
+          ),
+        ),
+      );
+      try {
+        await browser.setOnUrlRequestCallback(
+          (url) => Uri.tryParse(url)?.origin == base.origin,
+        );
+        await browser.launch(base.resolve('login').toString());
+        final deadline = DateTime.now().add(const Duration(seconds: 30));
+        var found = false;
+        while (DateTime.now().isBefore(deadline)) {
+          final cookies = await browser.getAllCookies().timeout(
+            const Duration(seconds: 5),
+          );
+          found = cookies.any(
+            (cookie) =>
+                browserCookieText(cookie.name) == 'biload_fixture' &&
+                browserCookieText(cookie.value) == 'fixture' &&
+                cookie.httpOnly,
+          );
+          if (found) break;
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+        _check(found, 'Native HttpOnly cookie retrieval failed');
+      } finally {
+        await browser.close();
+      }
     }
+    _check(
+      integer((await manifest())['successfulPosts']) == 1,
+      'Webview navigation did not preserve the POST body',
+    );
+    checks.add('webview-post-and-httpOnly-cookie');
     client.close();
     store.close();
     transferStore.db.close();

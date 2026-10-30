@@ -234,56 +234,6 @@ void main() {
   );
 
   testWidgets(
-    'legacy private media without a task record is recovered, migrated and removed',
-    (tester) async {
-      final base = (await getExternalStorageDirectory())!;
-      final legacyDirectory = await Directory(p.join(base.path, 'biload'))
-          .create(recursive: true);
-      final source = await File(fixtureOutput).copy(
-        p.join(
-          legacyDirectory.path,
-          'legacy-fixture-${DateTime.now().millisecondsSinceEpoch}.mkv',
-        ),
-      );
-      final storage = OutputStorage();
-      final store = LocalStore(
-        p.join(verificationRoot.path, 'legacy-tasks.sqlite'),
-      );
-      final manager = DownloadManager(
-        api: FixtureCatalogApi(const StreamCatalog(videos: [], audios: [])),
-        store: store,
-        workDirectory: p.join(verificationRoot.path, 'legacy-work'),
-        outputStorage: storage,
-      );
-      try {
-        await manager.initialize();
-        final job = manager.jobs.singleWhere((j) => j.output == source.path);
-        expect(job.status, JobStatus.complete);
-        expect(manager.legacyOutputCount, 1);
-        expect(
-          await manager.migrateLegacyOutputs(OutputStorage.androidDownloads),
-          1,
-        );
-        expect(await storage.exists(job.output), isTrue);
-        expect(await source.exists(), isFalse);
-        expect(store.loadJobs().single.retainedSource, isEmpty);
-        results['legacyMigration'] = {
-          'untrackedFileRecovered': true,
-          'published': true,
-          'privateSourceRemoved': true,
-        };
-        await storage.delete(job.output);
-      } finally {
-        if (await source.exists()) await source.delete();
-        manager.dispose();
-        store.close();
-      }
-    },
-    skip: !Platform.isAndroid,
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
-
-  testWidgets(
     'native UIDT stays alive during a slow transfer beyond the notification deadline',
     (tester) async {
       await tester.pumpWidget(

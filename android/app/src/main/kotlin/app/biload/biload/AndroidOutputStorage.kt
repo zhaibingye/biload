@@ -46,13 +46,6 @@ class AndroidOutputStorage(private val activity: Activity) {
 
     fun handle(call: MethodCall, result: MethodChannel.Result): Boolean {
         when (call.method) {
-            "storageLegacyFiles" -> background(result) {
-                val external = activity.getExternalFilesDir(null) ?: return@background emptyList<Map<String, Any>>()
-                val directory = File(external, "biload")
-                directory.listFiles()?.filter { it.isFile && it.extension.lowercase() in setOf("mp4", "mkv", "m4a", "mka", "flac") }
-                    ?.map { mapOf("path" to privateFile(it.path).path, "name" to it.name,
-                        "bytes" to it.length(), "modified" to it.lastModified()) } ?: emptyList<Map<String, Any>>()
-            }
             "storageChooseDirectory" -> {
                 if (directoryResult != null) {
                     result.error("BUSY", "请先完成当前目录选择。", null)
@@ -111,11 +104,6 @@ class AndroidOutputStorage(private val activity: Activity) {
                     val file = readableFile(output)
                     if (file.exists() && !file.delete()) throw IOException("文件删除失败。")
                 }
-                null
-            }
-            "storageDeletePrivate" -> background(result) {
-                val source = privateFile(call.argument<String>("source") ?: "")
-                if (source.exists() && !source.delete()) throw IOException("公共目录已保存，但应用内旧副本清理失败，请重试清理。")
                 null
             }
             "storageOpen" -> {

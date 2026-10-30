@@ -52,53 +52,12 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, Future<void>> _pausing = {};
   final Map<String, DateTime> _lastSaved = {};
   int concurrency = 2;
-  bool movingFiles = false;
-  int get legacyOutputCount => jobs
-      .where(
-        (j) =>
-            j.status == JobStatus.complete &&
-            (outputStorage.isLegacyOutput(j.output) ||
-                j.retainedSource.isNotEmpty),
-      )
-      .length;
   bool _ready = false;
   Future<void>? _nativeRestoration;
   bool get hasActiveWorkers => _running.isNotEmpty;
 
   Future<void> initialize() async {
     jobs.addAll(store.loadJobs());
-    for (final file in await outputStorage.legacyOutputs()) {
-      if (jobs.any(
-        (j) => j.output == file.path || j.retainedSource == file.path,
-      )) {
-        continue;
-      }
-      final id =
-          'legacy-${sha256.convert(utf8.encode(file.path)).toString().substring(0, 20)}';
-      final recovered = DownloadJob(
-        id: id,
-        page: MediaPage(
-          ref: const ContentRef(ContentKind.video, ''),
-          cid: 0,
-          aid: 0,
-          bvid: '',
-          title: file.name,
-          part: '旧版文件',
-          index: 1,
-          duration: 0,
-        ),
-        videoKey: null,
-        audioKeys: [],
-        container: p.extension(file.name).replaceFirst('.', ''),
-        directory: p.dirname(file.path),
-        createdAt: DateTime.fromMillisecondsSinceEpoch(file.modified),
-        status: JobStatus.complete,
-        output: file.path,
-        message: '旧版文件待迁移',
-      );
-      jobs.add(recovered);
-      store.saveJob(recovered);
-    }
     concurrency =
         int.tryParse(store.setting('concurrency') ?? '')?.clamp(1, 4) ?? 2;
     downloader.configureNotification(
@@ -115,6 +74,13 @@ class DownloadManager extends ChangeNotifier {
       await downloader.configure(
         androidConfig: [(Config.runInForeground, Config.always)],
       );
+    } else {
+      final temporary = await Directory(
+        p.join(p.dirname(workDirectory), 'transfers'),
+      ).create(recursive: true);
+      await downloader.configure(
+        desktopConfig: [(Config.tempFilePath, temporary.path)],
+      );
     }
     await downloader.start(
       autoCleanDatabase: true,
@@ -122,12 +88,6 @@ class DownloadManager extends ChangeNotifier {
     );
     final notificationsReady = await _prepareNativeTransfers();
     for (final job in jobs) {
-      if (outputStorage.isAndroid &&
-          job.status != JobStatus.complete &&
-          !outputStorage.isSharedDirectory(job.directory)) {
-        job.directory = OutputStorage.androidDownloads;
-        store.saveJob(job);
-      }
       if ({
         JobStatus.queued,
         JobStatus.resolving,
@@ -245,6 +205,7 @@ class DownloadManager extends ChangeNotifier {
         _run(job).whenComplete(() async {
           _transfers.remove(job.id);
           _pauseSignals.remove(job.id);
+          _lastSaved.remove(job.id);
           if (job.status == JobStatus.canceled) await _cleanupWorkFiles(job);
           _running.remove(job.id);
           _pump();
@@ -253,7 +214,7 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  Future<void> _guard(DownloadJob job) async {
+  void _guard(DownloadJob job) {
     if (job.status == JobStatus.canceled) throw _Canceled();
     if (job.status == JobStatus.paused) {
       throw _Paused();
@@ -263,7 +224,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _run(DownloadJob job) async {
     _pauseSignals[job.id] = Completer<void>();
     try {
-      await _guard(job);
+      _guard(job);
       job.status = JobStatus.resolving;
       job.message = '正在更新下载地址';
       _save(job);
@@ -273,7 +234,7 @@ class DownloadManager extends ChangeNotifier {
           await _perform(job, catalog, attempt);
           return;
         } on BiliException catch (e) {
-          await _guard(job);
+          _guard(job);
           if (attempt == 1 || !{403, 404, 410}.contains(e.code)) rethrow;
           job.message = '地址已失效，正在重新解析';
           _save(job);
@@ -309,12 +270,7 @@ class DownloadManager extends ChangeNotifier {
   ) async {
     VideoVariant? video;
     if (job.videoKey != null) {
-      for (final candidate in catalog.videos) {
-        if (candidate.key == job.videoKey) {
-          video = candidate;
-          break;
-        }
-      }
+      video = catalog.videos.where((v) => v.key == job.videoKey).firstOrNull;
       if (video == null) throw const BiliException('原选视频规格已不可用，请重新解析；没有自动降级。');
     }
     final audios = <AudioVariant>[];
@@ -342,19 +298,14 @@ class DownloadManager extends ChangeNotifier {
     final sizes = <int?>[];
     final cachedResources = <bool>[];
     for (var offset = 0; offset < resources.length; offset += 3) {
-      await _guard(job);
+      _guard(job);
       final batch = await Future.wait(
         resources.skip(offset).take(3).map((r) async {
-          final hash = sha256
-              .convert(utf8.encode(r.$1))
-              .toString()
-              .substring(0, 20);
-          final saved = store.resource('${job.id}_$hash');
+          final hash = _resourceHash(r.$1);
           final file = File(p.join(jobDir, '$hash.media'));
-          if (saved?['complete'] == true &&
-              await file.exists() &&
-              await file.length() == integer(saved?['length'])) {
-            return (size: await file.length() as int?, cached: true);
+          final cachedSize = await _cachedSize('${job.id}_$hash', file);
+          if (cachedSize != null) {
+            return (size: cachedSize, cached: true);
           }
           return (size: await api.resourceSize(r.$2, job.page), cached: false);
         }),
@@ -375,7 +326,7 @@ class DownloadManager extends ChangeNotifier {
     saveBytes();
     final files = <String>[];
     for (var i = 0; i < resources.length; i++) {
-      await _guard(job);
+      _guard(job);
       job.status = JobStatus.downloading;
       job.message = '下载流 ${i + 1} / ${resources.length}';
       _save(job);
@@ -393,7 +344,7 @@ class DownloadManager extends ChangeNotifier {
       saveBytes();
       _save(job);
     }
-    await _guard(job);
+    _guard(job);
     job.status = JobStatus.merging;
     job.progress = 1;
     job.bytesPerSecond = 0;
@@ -427,7 +378,7 @@ class DownloadManager extends ChangeNotifier {
       output: temporary,
       progressive: video?.progressive ?? false,
     );
-    await _guard(job);
+    _guard(job);
     final suffix = video == null
         ? audios.single.qualityLabel
         : '${video.qualityLabel}_${video.codecLabel}';
@@ -443,7 +394,7 @@ class DownloadManager extends ChangeNotifier {
       filename,
     );
     try {
-      await _guard(job);
+      _guard(job);
       job.output = output;
       job.status = JobStatus.complete;
       job.progress = 1;
@@ -461,6 +412,20 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
+  static String _resourceHash(String key) =>
+      sha256.convert(utf8.encode(key)).toString().substring(0, 20);
+
+  Future<int?> _cachedSize(String resourceId, File file) async {
+    final saved = store.resource(resourceId);
+    if (saved?['complete'] != true) return null;
+    final stat = await file.stat();
+    return stat.type == FileSystemEntityType.file &&
+            stat.size > 0 &&
+            stat.size == integer(saved?['length'])
+        ? stat.size
+        : null;
+  }
+
   Future<String> _resource(
     DownloadJob job,
     String variantKey,
@@ -470,22 +435,17 @@ class DownloadManager extends ChangeNotifier {
     ByteProgress byteProgress,
     int attempt,
   ) async {
-    final hash = sha256
-        .convert(utf8.encode(variantKey))
-        .toString()
-        .substring(0, 20);
+    final hash = _resourceHash(variantKey);
     final resourceId = '${job.id}_$hash';
     final path = p.join(directory, '$hash.media');
-    final saved = store.resource(resourceId);
-    if (saved?['complete'] == true &&
-        await File(path).exists() &&
-        await File(path).length() == integer(saved?['length'])) {
-      byteProgress.complete(index, await File(path).length());
+    final cachedSize = await _cachedSize(resourceId, File(path));
+    if (cachedSize != null) {
+      byteProgress.complete(index, cachedSize);
       return path;
     }
     TaskStatusUpdate? last;
     for (var backup = 0; backup < source.urls.length; backup++) {
-      await _guard(job);
+      _guard(job);
       if (!await _prepareNativeTransfers()) {
         throw const BiliException(downloadNotificationPermissionMessage);
       }
@@ -540,7 +500,7 @@ class DownloadManager extends ChangeNotifier {
         update();
       });
       try {
-        await _guard(job);
+        _guard(job);
         if (transfer.statusNotifier.value == TaskStatus.paused) {
           await transfer.resume();
         }
@@ -558,7 +518,7 @@ class DownloadManager extends ChangeNotifier {
         await progressEvents.cancel();
         if (identical(_transfers[job.id], transfer)) _transfers.remove(job.id);
       }
-      await _guard(job);
+      _guard(job);
       if (last.status == TaskStatus.complete) {
         final length = await File(path).length();
         if (length == 0 ||
@@ -668,10 +628,6 @@ class DownloadManager extends ChangeNotifier {
     if (!await _cleanupWorkFiles(job)) {
       throw const BiliException('临时文件清理失败，记录已保留，请检查文件权限后重试。');
     }
-    await _cleanupRetainedSource(job);
-    if (job.retainedSource.isNotEmpty) {
-      throw const BiliException('旧版副本尚未清理，记录已保留，请重试迁移。');
-    }
     jobs.remove(job);
     store.removeJob(job.id);
     notifyListeners();
@@ -695,21 +651,6 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  Future<void> _cleanupRetainedSource(DownloadJob job) async {
-    if (job.retainedSource.isEmpty) return;
-    try {
-      if (!await outputStorage.exists(job.output)) return;
-      await outputStorage.deleteLegacySource(job.retainedSource);
-      job.retainedSource = '';
-      job.message = '已移至下载目录，旧副本已清理';
-      _save(job);
-    } on BiliException {
-      // Keep the source receipt so startup or an explicit cleanup can retry.
-    } on FileSystemException {
-      // The public copy is already committed; keep the cleanup receipt.
-    }
-  }
-
   Future<int> cleanupFinishedCache({
     bool includeFailed = false,
     bool strict = false,
@@ -718,8 +659,6 @@ class DownloadManager extends ChangeNotifier {
     var failed = false;
     for (final job in jobs.toList()) {
       if (_running.contains(job.id)) continue;
-      await _cleanupRetainedSource(job);
-      if (job.retainedSource.isNotEmpty) failed = true;
       if ({
         JobStatus.complete,
         JobStatus.canceled,
@@ -753,66 +692,9 @@ class DownloadManager extends ChangeNotifier {
       failed = true;
     }
     if (strict && failed) {
-      throw const BiliException('部分临时文件尚未清理，请检查目录权限；旧版文件请先完成迁移。');
+      throw const BiliException('部分临时文件尚未清理，请检查目录权限。');
     }
     return cleaned;
-  }
-
-  Future<int> migrateLegacyOutputs(
-    String directory, {
-    DownloadJob? only,
-  }) async {
-    if (movingFiles) throw const BiliException('正在迁移文件，请稍候。');
-    movingFiles = true;
-    notifyListeners();
-    var moved = 0;
-    try {
-      await outputStorage.prepare(directory);
-      for (final job in jobs.toList()) {
-        if (only != null && job != only) continue;
-        if (job.status != JobStatus.complete ||
-            (!outputStorage.isLegacyOutput(job.output) &&
-                job.retainedSource.isEmpty)) {
-          continue;
-        }
-        final oldOutput = job.output;
-        final oldRetainedSource = job.retainedSource;
-        final source = outputStorage.isLegacyOutput(job.output)
-            ? job.output
-            : job.retainedSource;
-        if (!await outputStorage.exists(source)) {
-          if (outputStorage.isLegacyOutput(job.output)) job.output = '';
-          job.retainedSource = '';
-          job.message = '原文件已被移动或删除';
-          _save(job);
-          continue;
-        }
-        final output = await outputStorage.publish(
-          source,
-          directory,
-          p.basename(source),
-        );
-        final oldDirectory = job.directory;
-        try {
-          job.output = output;
-          job.directory = directory;
-          job.retainedSource = source;
-          _save(job);
-        } catch (_) {
-          job.output = oldOutput;
-          job.directory = oldDirectory;
-          job.retainedSource = oldRetainedSource;
-          await outputStorage.delete(output);
-          rethrow;
-        }
-        await _cleanupRetainedSource(job);
-        moved++;
-      }
-      return moved;
-    } finally {
-      movingFiles = false;
-      notifyListeners();
-    }
   }
 
   void configure({required int concurrent}) {

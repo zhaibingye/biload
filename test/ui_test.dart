@@ -55,6 +55,7 @@ void main() {
       ),
       store: store,
       outputDirectory: 'C:/Downloads/biload',
+      dataDirectory: 'C:/biload/user-data',
     );
     if (parsed) {
       result.content = const MediaContent(
@@ -106,6 +107,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('把喜欢的，\n好好收藏。'), findsOneWidget);
+      expect(find.text('普通视频'), findsNothing);
+      expect(find.text('分 P'), findsNothing);
+      expect(find.text('番剧 / 影视'), findsNothing);
       expect(tester.takeException(), isNull);
       if (size.width == 1440 && Platform.environment['BILOAD_CAPTURE'] == '1') {
         tester.view.physicalSize = const Size(1440, 820);
@@ -128,6 +132,8 @@ void main() {
       await tester.tap(find.text('账号与设置').last);
       await tester.pumpAndSettle();
       expect(find.text('尚未登录'), findsOneWidget);
+      expect(find.text('用户数据'), findsOneWidget);
+      expect(find.text('迁移旧版文件'), findsNothing);
       expect(tester.takeException(), isNull);
       await capture(tester, 'settings-${size.width.toInt()}', key);
       await tester.pumpWidget(const SizedBox());
@@ -195,6 +201,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('account-entry')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+      final transition = tester.widget<FadeTransition>(
+        find
+            .ancestor(
+              of: find.text('哔哩哔哩账号'),
+              matching: find.byType(FadeTransition),
+            )
+            .first,
+      );
+      expect(transition.opacity.value, inExclusiveRange(0, 1));
       await tester.pumpAndSettle();
       expect(find.byType(LoginDialog), findsNothing);
       expect(find.text('哔哩哔哩账号').hitTestable(), findsOneWidget);
@@ -208,6 +225,34 @@ void main() {
       c.store.close();
     },
   );
+
+  testWidgets('concurrency selection releases its focus highlight', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 960);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final c = controller();
+    await tester.pumpWidget(BiloadApp(controller: c));
+    await tester.tap(find.text('账号与设置').last);
+    await tester.pumpAndSettle();
+    final selector = find.byKey(const ValueKey('download-concurrency'));
+    final focus = tester.widget<DropdownButton<int>>(selector).focusNode!;
+    focus.requestFocus();
+    await tester.pump();
+    expect(focus.hasFocus, isTrue);
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3').last);
+    await tester.pumpAndSettle();
+    expect(c.downloads.concurrency, 3);
+    expect(focus.hasFocus, isFalse);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+    c.store.close();
+  });
 
   testWidgets(
     'parsed desktop catalog shows all codecs and preserves independent choices',

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=biload
+Comment=Download and save Bilibili videos
+Comment[zh_CN]=哔哩哔哩视频下载工具
+Exec=biload
+Icon=app.biload.biload
+Terminal=false
+Categories=Network;AudioVideo;
+StartupWMClass=app.biload.biload

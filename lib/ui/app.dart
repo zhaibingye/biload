@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../app_controller.dart';
+import '../app_version.dart';
 import '../core/models.dart';
 import '../services/output_storage.dart';
 import 'login_dialog.dart';
@@ -33,6 +33,7 @@ class Workspace extends StatefulWidget {
 class _WorkspaceState extends State<Workspace> {
   final input = TextEditingController();
   final bodyScroll = ScrollController();
+  final concurrencyFocus = FocusNode();
   int destination = 0;
   int queueFilter = 0;
   static const destinations = [
@@ -61,6 +62,7 @@ class _WorkspaceState extends State<Workspace> {
     c.removeListener(changed);
     input.dispose();
     bodyScroll.dispose();
+    concurrencyFocus.dispose();
     super.dispose();
   }
 
@@ -90,11 +92,29 @@ class _WorkspaceState extends State<Workspace> {
                           alignment: Alignment.topCenter,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 1100),
-                            child: switch (destination) {
-                              1 => queue(),
-                              2 => settings(),
-                              _ => createPage(wide),
-                            },
+                            child: AnimatedSwitcher(
+                              duration: MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 200),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              layoutBuilder: (current, previous) => Stack(
+                                alignment: Alignment.topCenter,
+                                children: [
+                                  for (final child in previous)
+                                    IgnorePointer(child: child),
+                                  ?current,
+                                ],
+                              ),
+                              child: KeyedSubtree(
+                                key: ValueKey(destination),
+                                child: switch (destination) {
+                                  1 => queue(),
+                                  2 => settings(),
+                                  _ => createPage(wide),
+                                },
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -201,7 +221,7 @@ class _WorkspaceState extends State<Workspace> {
         const Padding(
           padding: EdgeInsets.only(left: 12),
           child: Text(
-            'BILOAD  /  1.0.0',
+            'BILOAD  /  $appVersion',
             style: TextStyle(fontSize: 10, color: muted, letterSpacing: 1.2),
           ),
         ),
@@ -357,32 +377,22 @@ class _WorkspaceState extends State<Workspace> {
               ),
             ),
             const SizedBox(height: 18),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 18,
-              runSpacing: 14,
-              children: [
-                const Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [Tag('普通视频'), Tag('分 P'), Tag('番剧 / 影视')],
-                ),
-                FilledButton.icon(
-                  key: const Key('parse-link'),
-                  onPressed: c.parsing || c.adding
-                      ? null
-                      : () => c.parse(input.text),
-                  icon: c.parsing
-                      ? const SizedBox(
-                          width: 17,
-                          height: 17,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.arrow_forward_rounded, size: 19),
-                  label: Text(c.parsing ? '正在解析' : '解析视频'),
-                ),
-              ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                key: const Key('parse-link'),
+                onPressed: c.parsing || c.adding
+                    ? null
+                    : () => c.parse(input.text),
+                icon: c.parsing
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.arrow_forward_rounded, size: 19),
+                label: Text(c.parsing ? '正在解析' : '解析视频'),
+              ),
             ),
           ],
         ),
@@ -1049,31 +1059,6 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                     label: const Text('打开'),
                   ),
-                  if (c.downloads.outputStorage.isLegacyOutput(job.output) ||
-                      job.retainedSource.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: c.downloads.movingFiles
-                          ? null
-                          : () => action(context, () async {
-                              await c.downloads.migrateLegacyOutputs(
-                                c.outputDirectory,
-                                only: job,
-                              );
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      job.retainedSource.isEmpty
-                                          ? '已移至下载目录，旧文件已清理'
-                                          : '已保存到下载目录，请在设置中重试清理旧副本',
-                                    ),
-                                  ),
-                                );
-                              }
-                            }),
-                      icon: const Icon(Icons.ios_share_rounded, size: 17),
-                      label: const Text('移至下载目录'),
-                    ),
                 ],
               ],
             ),
@@ -1098,14 +1083,7 @@ class _WorkspaceState extends State<Workspace> {
     if (!await c.downloads.outputStorage.exists(job.output)) {
       throw const BiliException('文件已被移动或删除。');
     }
-    if (Platform.isAndroid || Platform.isWindows) {
-      await c.downloads.outputStorage.open(job.output);
-    } else if (!await launchUrl(
-      Uri.file(job.output),
-      mode: LaunchMode.externalApplication,
-    )) {
-      throw const BiliException('无法打开文件，请在下载目录中查看。');
-    }
+    await c.downloads.outputStorage.open(job.output);
   }
 
   Widget settings() => Column(
@@ -1207,6 +1185,8 @@ class _WorkspaceState extends State<Workspace> {
                   child: Text('同时下载任务数', style: TextStyle(fontSize: 13)),
                 ),
                 DropdownButton<int>(
+                  key: const ValueKey('download-concurrency'),
+                  focusNode: concurrencyFocus,
                   value: c.downloads.concurrency,
                   items: [
                     for (var i = 1; i <= 4; i++)
@@ -1215,6 +1195,7 @@ class _WorkspaceState extends State<Workspace> {
                   onChanged: (value) {
                     if (value != null) {
                       c.downloads.configure(concurrent: value);
+                      concurrencyFocus.unfocus();
                     }
                   },
                 ),
@@ -1233,6 +1214,35 @@ class _WorkspaceState extends State<Workspace> {
                 label: const Text('更改下载目录'),
               ),
             ),
+            if (!Platform.isAndroid && c.dataDirectory != null) ...[
+              const Divider(height: 32),
+              const Text(
+                '用户数据',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SelectableText(
+                c.dataDirectory!,
+                style: const TextStyle(fontSize: 12, color: muted),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '账号、设置和缓存都在这里。关闭软件后删除此文件夹即可重置。',
+                style: TextStyle(fontSize: 12, color: muted),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => action(context, () async {
+                    await c.downloads.outputStorage.openDirectory(
+                      c.dataDirectory!,
+                    );
+                  }),
+                  icon: const Icon(Icons.folder_open_rounded, size: 18),
+                  label: const Text('打开用户数据文件夹'),
+                ),
+              ),
+            ],
             if (Platform.isAndroid) ...[
               Align(
                 alignment: Alignment.centerLeft,
@@ -1246,46 +1256,21 @@ class _WorkspaceState extends State<Workspace> {
                 '完成的视频保存在公共文件夹，可在系统文件管理器中删除。下载和合并的临时文件会自动清理。',
                 style: TextStyle(fontSize: 12, color: muted),
               ),
-              if (c.downloads.legacyOutputCount > 0) ...[
-                const SizedBox(height: 16),
-                Text(
-                  '旧版有 ${c.downloads.legacyOutputCount} 个文件仍在应用目录。迁移成功后会删除应用内原件。',
-                  style: const TextStyle(fontSize: 12, color: muted),
-                ),
-                const SizedBox(height: 10),
-                FilledButton.tonal(
-                  onPressed: c.downloads.movingFiles
-                      ? null
-                      : () => action(context, () async {
-                          final count = await c.downloads.migrateLegacyOutputs(
-                            c.outputDirectory,
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('已迁移 $count 个文件')),
-                            );
-                          }
-                        }),
-                  child: Text(c.downloads.movingFiles ? '正在迁移文件…' : '迁移旧版文件'),
-                ),
-              ],
-              TextButton(
-                onPressed: () => action(context, () async {
-                  await c.downloads.cleanupFinishedCache(
-                    includeFailed: true,
-                    strict: true,
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('已清理已结束任务的临时文件，失败任务重试时会重新下载'),
-                      ),
-                    );
-                  }
-                }),
-                child: const Text('清理已结束任务的临时文件'),
-              ),
             ],
+            TextButton(
+              onPressed: () => action(context, () async {
+                await c.downloads.cleanupFinishedCache(
+                  includeFailed: true,
+                  strict: true,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已清理已结束任务的临时文件，失败任务重试时会重新下载')),
+                  );
+                }
+              }),
+              child: const Text('清理已结束任务的临时文件'),
+            ),
           ],
         ),
       ),
@@ -1296,7 +1281,10 @@ class _WorkspaceState extends State<Workspace> {
           children: [
             Brand(),
             SizedBox(height: 16),
-            Text('1.0.0 · 免费开源', style: TextStyle(color: muted, fontSize: 12)),
+            Text(
+              '$appVersion · 免费开源',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
             SizedBox(height: 8),
             Text(
               '保存账号有权访问的内容。版本与可下载状态以实时解析结果为准。',
@@ -1307,7 +1295,7 @@ class _WorkspaceState extends State<Workspace> {
               onPressed: () => showLicensePage(
                 context: context,
                 applicationName: 'biload',
-                applicationVersion: '1.0.0',
+                applicationVersion: appVersion,
                 applicationLegalese: '作者：烨染霜华 · GPL-3.0-or-later',
               ),
               icon: const Icon(Icons.article_outlined, size: 18),

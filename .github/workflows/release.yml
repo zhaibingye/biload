@@ -34,13 +34,14 @@ jobs:
       - run: flutter pub get
       - run: flutter build ${{ matrix.target }} --release
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y xvfb dbus-x11 gnome-keyring fonts-noto-cjk patchelf network-manager
+        run: sudo apt-get install -y xvfb dbus-x11 fonts-noto-cjk patchelf network-manager
       - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $version = ((Select-String '^version:' pubspec.yaml).Line -split ' ')[1].Split('+')[0]
           Copy-Item LICENSE,THIRD_PARTY_NOTICES.md,AUTHORS build/windows/x64/runner/Release/
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "biload-$version-windows-x64.zip"
+          $files = Get-ChildItem build/windows/x64/runner/Release | Where-Object { $_.Name -notin @('user-data', 'downloads') }
+          Compress-Archive -Path $files.FullName -DestinationPath "biload-$version-windows-x64.zip"
       - if: runner.os == 'Linux'
         run: |
           version=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
@@ -68,8 +69,8 @@ jobs:
           if grep -q 'not found' linux-runtime.txt; then exit 1; fi
           python3 -c "import ctypes; ctypes.CDLL('$bundle/lib/libffmpegkit.so'); print('FFmpegKit runtime loaded')"
           sudo systemctl start NetworkManager
-          xvfb-run -a dbus-run-session -- bash -c 'printf "verification\n" | gnome-keyring-daemon --unlock --components=secrets; python3 tool/verify_desktop_release.py --executable build/linux/x64/release/bundle/biload'
-          tar czf "biload-$version-linux-x64.tar.gz" -C "$bundle" .
+          xvfb-run -a dbus-run-session -- python3 tool/verify_desktop_release.py --executable build/linux/x64/release/bundle/biload
+          tar --exclude=./user-data --exclude=./downloads -czf "biload-$version-linux-x64.tar.gz" -C "$bundle" .
       - if: runner.os == 'macOS'
         run: |
           version=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
@@ -116,11 +117,11 @@ jobs:
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 xvfb dbus-x11 gnome-keyring fonts-noto-cjk network-manager
+          sudo apt-get install -y ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 xvfb dbus-x11 fonts-noto-cjk network-manager
           sudo systemctl start NetworkManager
           mkdir unpacked
           tar xzf package/biload-*-linux-x64.tar.gz -C unpacked
-          xvfb-run -a dbus-run-session -- bash -c 'printf "verification\n" | gnome-keyring-daemon --unlock --components=secrets; python3 tool/verify_desktop_release.py --executable unpacked/biload'
+          xvfb-run -a dbus-run-session -- python3 tool/verify_desktop_release.py --executable unpacked/biload
       - if: runner.os == 'macOS'
         run: |
           ditto -x -k package/biload-*-macos-universal.zip unpacked

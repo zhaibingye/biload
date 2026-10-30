@@ -26,6 +26,12 @@ def run(name, *options):
 
 badging = run('aapt', 'dump', 'badging', args.apk)
 assert "package: name='app.biload.biload'" in badging, 'Wrong production package'
+version = re.search(r'^version:\s*(\S+)',
+                    (Path(__file__).resolve().parents[1] / 'pubspec.yaml').read_text(encoding='utf-8'),
+                    re.MULTILINE).group(1)
+version_name, version_code = version.split('+')
+assert f"versionName='{version_name}'" in badging, 'Wrong release version'
+assert f"versionCode='{version_code}'" in badging, 'Wrong release build number'
 assert "sdkVersion:'26'" in badging, 'Minimum Android version changed'
 assert "targetSdkVersion:'36'" in badging, 'Unexpected target Android version'
 assert "native-code: 'arm64-v8a'" in badging, 'Unexpected APK architecture'
@@ -66,6 +72,7 @@ with args.apk.open('rb') as source:
     for chunk in iter(lambda: source.read(1024 * 1024), b''):
         digest.update(chunk)
 report = {
+    'version': version,
     'file': args.apk.name,
     'sizeBytes': args.apk.stat().st_size,
     'sha256': digest.hexdigest(),

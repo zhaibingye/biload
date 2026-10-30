@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:biload/app_controller.dart';
@@ -12,6 +13,8 @@ import 'support.dart';
 
 class SelectionApi extends BiliApi {
   StreamCatalog versions = BiliApi.parseStreams(sampleStreams());
+  Completer<void>? catalogGate;
+  int catalogCalls = 0;
   @override
   Future<MediaContent> content(ContentRef ref) async => const MediaContent(
     title: 'fixture',
@@ -20,7 +23,11 @@ class SelectionApi extends BiliApi {
     pages: [samplePage],
   );
   @override
-  Future<StreamCatalog> catalog(MediaPage page) async => versions;
+  Future<StreamCatalog> catalog(MediaPage page) async {
+    catalogCalls++;
+    await catalogGate?.future;
+    return versions;
+  }
 }
 
 class RecordingDownloads extends DownloadManager {
@@ -73,6 +80,25 @@ void main() {
     downloads.dispose();
     store.close();
   });
+
+  test(
+    'parsing serializes new links and page changes until selection is ready',
+    () async {
+      api.catalogGate = Completer<void>();
+      final parsing = controller.parse('BV17x411w7KC');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.parsing, isTrue);
+      await controller.parse('BV19pnt6XE6d');
+      await controller.selectPage(0);
+      expect(api.catalogCalls, 1);
+      api.catalogGate!.complete();
+      await parsing;
+      expect(controller.parsing, isFalse);
+      expect(controller.catalog, same(api.versions));
+      expect(controller.selectedVideos.length, 1);
+      expect(controller.selectedAudios.length, 1);
+    },
+  );
 
   test(
     'default DASH video and AAC are submitted as one combined video job',

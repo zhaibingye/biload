@@ -299,7 +299,6 @@ class DownloadJob {
     this.progress = 0,
     this.message = '',
     this.output = '',
-    this.retainedSource = '',
     this.bytesPerSecond = 0,
     this.downloadedBytes = 0,
     this.totalBytes = 0,
@@ -315,7 +314,6 @@ class DownloadJob {
   double progress;
   String message;
   String output;
-  String retainedSource;
   double bytesPerSecond;
   int downloadedBytes;
   int totalBytes;
@@ -337,7 +335,6 @@ class DownloadJob {
     'progress': progress,
     'message': message,
     'output': output,
-    'retainedSource': retainedSource,
     'downloadedBytes': downloadedBytes,
     'totalBytes': totalBytes,
   };
@@ -353,7 +350,6 @@ class DownloadJob {
     progress: (j['progress'] as num?)?.toDouble() ?? 0,
     message: string(j['message']),
     output: string(j['output']),
-    retainedSource: string(j['retainedSource']),
     downloadedBytes: integer(j['downloadedBytes']),
     totalBytes: integer(j['totalBytes']),
   );

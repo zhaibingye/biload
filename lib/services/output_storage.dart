@@ -2,10 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../core/models.dart';
-
-typedef LegacyOutput = ({String path, String name, int bytes, int modified});
 
 class OutputStorage {
   OutputStorage({bool? isAndroid, MethodChannel? channel})
@@ -17,26 +16,20 @@ class OutputStorage {
   final bool isAndroid;
   final MethodChannel channel;
 
+  static Future<String> defaultDirectory({
+    Future<Directory?> Function() downloadsDirectory = getDownloadsDirectory,
+  }) async {
+    if (Platform.isAndroid) return androidDownloads;
+    final directory = await downloadsDirectory();
+    if (directory == null) {
+      throw const BiliException('无法读取系统下载目录，请检查系统下载位置设置。');
+    }
+    return p.join(directory.path, 'biload');
+  }
+
   bool isSharedDirectory(String value) =>
       value == androidDownloads ||
       (Uri.tryParse(value)?.scheme == 'content' && value.contains('/tree/'));
-
-  bool isLegacyOutput(String value) =>
-      isAndroid && value.isNotEmpty && p.isAbsolute(value);
-
-  Future<List<LegacyOutput>> legacyOutputs() async {
-    if (!isAndroid) return [];
-    final values = await _call<List<Object?>>('storageLegacyFiles') ?? [];
-    return values.map((value) {
-      final file = value as Map;
-      return (
-        path: file['path'] as String,
-        name: file['name'] as String,
-        bytes: (file['bytes'] as num).toInt(),
-        modified: (file['modified'] as num).toInt(),
-      );
-    }).toList();
-  }
 
   Future<T?> _call<T>(String method, [Map<String, Object?>? arguments]) async {
     try {
@@ -106,22 +99,28 @@ class OutputStorage {
       ? await _call<bool>('storageExists', {'output': output}) ?? false
       : File(output).exists();
 
-  Future<void> open(String output) =>
-      _call<void>('storageOpen', {'output': output});
+  Future<void> open(String output) async {
+    if (isAndroid || Platform.isWindows) {
+      await _call<void>('storageOpen', {'output': output});
+    } else {
+      final result = await Process.run(Platform.isMacOS ? 'open' : 'xdg-open', [
+        output,
+      ]);
+      if (result.exitCode != 0) {
+        throw const BiliException('系统无法打开文件或文件夹，请检查默认应用。');
+      }
+    }
+  }
+
+  Future<void> openDirectory(String directory) => Platform.isWindows
+      ? _call<void>('storageOpenDirectory', {'output': directory})
+      : open(directory);
 
   Future<void> delete(String output) async {
     if (isAndroid) {
       await _call<void>('storageDelete', {'output': output});
     } else if (await File(output).exists()) {
       await File(output).delete();
-    }
-  }
-
-  Future<void> deleteLegacySource(String source) async {
-    if (isAndroid) {
-      await _call<void>('storageDeletePrivate', {'source': source});
-    } else if (await File(source).exists()) {
-      await File(source).delete();
     }
   }
 }

@@ -10,14 +10,10 @@ abstract class SessionVault {
   Future<void> clear();
 }
 
-class SecureSessionVault implements SessionVault {
-  const SecureSessionVault({this.key = 'biload.bilibili.session.v1'});
-  final String key;
-  // A standalone macOS build has no provisioning profile for shared Keychain
-  // groups. Use the login Keychain; credentials still stay in the OS vault.
-  static const _storage = FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+class AndroidSessionVault implements SessionVault {
+  const AndroidSessionVault();
+  static const key = 'biload.session.v2';
+  static const _storage = FlutterSecureStorage();
   @override
   Future<String?> read() => _storage.read(key: key);
   @override
@@ -44,7 +40,7 @@ class AuthController extends ChangeNotifier {
         await refresh();
       }
     } catch (_) {
-      warning = '无法恢复账号，请检查系统凭据存储或重新登录。';
+      warning = '无法恢复账号，请检查用户数据文件夹或重新登录。';
       notifyListeners();
     }
   }
@@ -56,7 +52,7 @@ class AuthController extends ChangeNotifier {
     try {
       await vault.write(session.encode());
     } catch (_) {
-      throw const BiliException('无法安全保存登录状态，请检查系统钥匙串或凭据服务。');
+      throw const BiliException('无法安全保存登录状态，请检查用户数据文件夹的写入权限。');
     }
     api.session = session;
     account = info;
@@ -83,7 +79,7 @@ class AuthController extends ChangeNotifier {
     } on BiliException catch (e) {
       warning = e.message;
     } catch (_) {
-      warning = '无法安全更新登录状态，请检查系统凭据存储或重新登录。';
+      warning = '无法安全更新登录状态，请检查用户数据文件夹或重新登录。';
     } finally {
       busy = false;
       notifyListeners();

@@ -65,7 +65,8 @@ try:
     print(json.dumps(report, indent=2, ensure_ascii=False))
     if app.returncode != 0 or report.get('passed') is not True:
         raise RuntimeError('Packaged runtime verification failed')
-    required = {'sqlite', 'os-credential-vault', 'ui-and-default-selection', 'rendered-ui',
+    required = {'sqlite', 'local-session-vault', 'installation-local-data',
+                'local-native-transfer-cache', 'ui-and-default-selection', 'rendered-ui',
                 'AVC-AAC', 'HEVC-AAC', 'AV1-AAC',
                 'multi-audio-AAC-FLAC-EAC3', 'audio-only-30280',
                 'audio-only-30251', 'audio-only-30250', 'pause-resume',

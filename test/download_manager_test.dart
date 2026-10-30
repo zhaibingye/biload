@@ -60,12 +60,7 @@ class TestPublicStorage extends OutputStorage {
   TestPublicStorage(this.root) : super(isAndroid: true);
   final Directory root;
   final files = <String, File>{};
-  List<LegacyOutput> discovered = [];
-  @override
-  Future<List<LegacyOutput>> legacyOutputs() async => discovered;
   bool failPublish = false;
-  bool failSourceCleanup = false;
-  void Function()? beforeSourceCleanup;
   Future<void> Function()? afterPublication;
   @override
   Future<void> prepare(String directory) async {
@@ -90,13 +85,6 @@ class TestPublicStorage extends OutputStorage {
   Future<void> delete(String output) async {
     final file = files[output];
     if (file != null && await file.exists()) await file.delete();
-  }
-
-  @override
-  Future<void> deleteLegacySource(String source) async {
-    beforeSourceCleanup?.call();
-    if (failSourceCleanup) throw const BiliException('Cleanup failed');
-    if (await File(source).exists()) await File(source).delete();
   }
 }
 
@@ -377,34 +365,6 @@ void main() {
     expect(store.loadJobs().single.status, JobStatus.failed);
   });
 
-  test('untracked legacy files are adopted before migration', () async {
-    final storage = await usePublicStorage();
-    final source = File(p.join(root.path, 'untracked.mp4'));
-    await source.writeAsBytes(List.filled(64, 1));
-    storage.discovered = [
-      (path: source.path, name: 'untracked.mp4', bytes: 64, modified: 1),
-    ];
-    manager.dispose();
-    manager = DownloadManager(
-      api: api,
-      store: store,
-      workDirectory: p.join(root.path, 'work'),
-      downloader: downloader,
-      muxer: muxer,
-      isAndroid: true,
-      outputStorage: storage,
-    );
-    await manager.initialize();
-    expect(manager.legacyOutputCount, 1);
-    expect(manager.jobs.single.output, source.path);
-    expect(
-      await manager.migrateLegacyOutputs(OutputStorage.androidDownloads),
-      1,
-    );
-    expect(await source.exists(), isFalse);
-    expect(await storage.exists(manager.jobs.single.output), isTrue);
-  });
-
   test('large video and small audio use combined bytes for progress and remaining size', () async {
     api.videoSize = 900;
     api.audioSize = 100;
@@ -470,52 +430,6 @@ void main() {
       await Directory(p.join(root.path, 'work', job.id)).exists(),
       isFalse,
     );
-  });
-
-  test('legacy migration commits the destination before deletion and retries retained cleanup', () async {
-    final storage = await usePublicStorage();
-    final source = File(p.join(root.path, 'legacy-video.mp4'));
-    await source.writeAsBytes(List.filled(100, 42));
-    final job = DownloadJob(
-      id: 'legacy-task',
-      page: samplePage,
-      videoKey: 'video',
-      audioKeys: ['audio'],
-      container: 'mp4',
-      directory: root.path,
-      createdAt: DateTime.now(),
-      status: JobStatus.complete,
-      output: source.path,
-    );
-    manager.jobs.add(job);
-    store.saveJob(job);
-    storage.failPublish = true;
-    await expectLater(
-      manager.migrateLegacyOutputs(OutputStorage.androidDownloads),
-      throwsA(isA<BiliException>()),
-    );
-    expect(await source.exists(), isTrue);
-    expect(store.loadJobs().single.output, source.path);
-    storage.failPublish = false;
-    storage.failSourceCleanup = true;
-    storage.beforeSourceCleanup = () {
-      final saved = store.loadJobs().single;
-      expect(saved.output, startsWith('content://media/'));
-      expect(saved.retainedSource, source.path);
-    };
-    expect(
-      await manager.migrateLegacyOutputs(OutputStorage.androidDownloads),
-      1,
-    );
-    expect(await source.exists(), isTrue);
-    expect(job.retainedSource, source.path);
-    expect(manager.legacyOutputCount, 1);
-    storage.failSourceCleanup = false;
-    await manager.cleanupFinishedCache();
-    expect(await source.exists(), isFalse);
-    expect(await storage.exists(job.output), isTrue);
-    expect(store.loadJobs().single.retainedSource, isEmpty);
-    expect(manager.legacyOutputCount, 0);
   });
 
   test('multiple selected audio tracks merge into one video output without sidecar audio', () async {

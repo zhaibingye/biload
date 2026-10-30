@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.13)
-project(runner LANGUAGES CXX)
+project(runner LANGUAGES C CXX)
+
+set(BRAND_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../../assets/brand/biload.svg")
+set(ICON_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/icon_resources.c")
+add_custom_command(OUTPUT "${ICON_RESOURCES}"
+  COMMAND glib-compile-resources
+    --generate-source
+    --c-name=biload
+    --target=${ICON_RESOURCES}
+    --sourcedir=${CMAKE_CURRENT_SOURCE_DIR}/../../assets/brand
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources.gresource.xml"
+  DEPENDS "resources.gresource.xml" "${BRAND_ICON}"
+  VERBATIM)
 
 # Define the application target. To change its name, change BINARY_NAME in the
 # top-level CMakeLists.txt, not the value here, or `flutter run` will no longer
@@ -9,6 +21,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME}
   "main.cc"
   "my_application.cc"
+  "${ICON_RESOURCES}"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
 )
 
