@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
@@ -151,6 +153,12 @@ Future<void> _verify() async {
       'OS credential cleanup',
     );
     checks.add('os-credential-vault');
+    final version = await FFmpegKit.executeWithArguments(['-version']);
+    _check(
+      ReturnCode.isSuccess(await version.getReturnCode()),
+      'Native FFmpeg version command',
+    );
+    report['ffmpegVersionAndConfiguration'] = await version.getOutput();
     final transferStore = IsolatedTransferStore(
       p.join(root.path, 'transfers.sqlite'),
     );

@@ -4,15 +4,15 @@
 
 **作者：烨染霜华** · [下载安装包](https://github.com/zhaibingye/biload/releases) · GPL-3.0-or-later
 
-**当前为 0.1.5 开发测试版。** Android 默认保存到公共 `Download/biload`，可更改目录；完成后清理临时文件，旧版文件可迁移。下载进度按所有所选音视频流的总字节数计算，显示剩余大小。Windows 使用原生文件路径打开视频；修正网页插件返回 Cookie 末尾空字符导致无法识别登录态的问题，凭据检查不再无限等待可选刷新令牌。真实短信验证仍需用户回归，番剧整集和特殊版本需要更多设备验收。
+**1.0.0**。Android 默认保存到公共 `Download/biload`，可更改目录；完成后清理临时文件，旧版文件可迁移。进度按所选音视频流的总字节计算。Windows 修复网页登录状态识别和中文文件路径打开；Linux 修复 FFmpeg 动态库加载与轨道信息读取；修复快速暂停后继续可能卡住的问题。
 
 ## 安装
 
-在 [Releases](https://github.com/zhaibingye/biload/releases) 选择对应平台：Windows x64 解压后运行 `biload.exe`，保留同目录的 DLL 和 data；Linux x64 解压后运行 `biload`；macOS 通用包同时包含 Apple Silicon 与 Intel；Android 选择 arm64 APK。macOS 测试包采用本地临时签名，尚未经过 Apple 公证。Android 当前使用开发签名，CI 的临时签名包与本地测试包不能相互覆盖，正式签名发布流程仍待配置。
+在 [Releases](https://github.com/zhaibingye/biload/releases) 选择对应平台：Windows x64 解压后运行 `biload.exe`，保留同目录的 DLL、data 和 licenses；Linux x64 解压后运行 `biload`；macOS 通用包包含 Apple Silicon 与 Intel；Android 选择 arm64 APK。Android 使用固定私有签名，沿用旧版证书以支持保留数据升级。Windows 暂无商业代码签名，macOS 使用 ad-hoc 签名，尚未经过 Apple 公证，系统可能显示未知发布者提示。
 
 Windows 需要系统默认播放器；MKV、HEVC、AV1 的播放支持取决于播放器。网页登录需要 WebView2 Runtime。Linux 运行依赖 GTK 3、WebKitGTK 4.1、libsecret 和 Secret Service。四端编译成功不代表所有设备、登录方式与账号权限均完成实机验收。
 
-Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0`。Linux 包自带 FFmpegKit 所需的 libvpx 7，避免 Ubuntu 24.04 系统仅有 libvpx 9 时缺少库。
+Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-0 libwebkit2gtk-4.1-0 libsecret-1-0 libjson-glib-1.0-0 network-manager`。桌面系统通常已启用 NetworkManager；安全保存账号需要已解锁的系统钥匙串。Linux 包自带 libvpx 7 与两项 AMR 库，并配置相对加载路径。
 
 ## 功能
 
@@ -34,7 +34,7 @@ Ubuntu 22.04/24.04 请先安装运行依赖：`sudo apt install ffmpeg libgtk-3-
 |---|---|
 | Windows | 10/11 x64 |
 | Linux | Ubuntu 22.04/24.04 x64 |
-| macOS | 当前 0.1.5 包要求 13+，arm64/x64；12 的兼容目标尚未完成 |
+| macOS | 13+，arm64/x64 |
 | Android | 8+，arm64 |
 
 平台目录存在不代表实机验证完成。验证状态见 [开发记录](docs/DEVELOPMENT.md)。
@@ -62,7 +62,7 @@ flutter build apk --debug --target-platform android-arm64 --split-per-abi
 
 Windows 中文目录下的优化构建请使用 `tool/build_android.ps1`。脚本通过 ASCII 目录联接调用 Flutter，源码保留在原目录。
 
-当前安卓包使用开发签名，不是公开发行的正式签名。`--release` 表示优化编译，不能替代正式发行签名与实机验收。
+Android 正式发布使用 `tool/build_signed_android.ps1`。签名文件保存在仓库外，密码通过 Windows DPAPI 保护；其他开发环境可通过 `BILOAD_KEYSTORE_PATH`、`BILOAD_STORE_PASSWORD`、`BILOAD_KEY_ALIAS`、`BILOAD_KEY_PASSWORD` 环境变量配置自己的密钥。未配置密钥时只生成未签名检查包，不能直接安装，也不得作为正式 Release APK 上传。
 
 Android debug 构建使用独立包名 `app.biload.biload.dev`，显示为“biload 开发版”。原生集成验证使用此包，账号和任务数据与普通测试版分开保存。
 
@@ -73,9 +73,11 @@ sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1
 flutter build linux --release
 ```
 
-Linux 登录状态持久化还需要运行中的 Secret Service / 系统钥匙串。macOS 需在 Mac 上使用 Xcode 构建；自选下载目录的沙箱授权需继续实机检查。
+Linux 登录状态持久化需要运行中的 Secret Service / 系统钥匙串。macOS 需在 Mac 上使用 Xcode 构建；自选目录通过系统选择器授予读写权限，并以安全书签在下次启动时恢复。
 
 ## 验证
+
+发布工作流运行打包后桌面程序，检查 SQLite、系统凭据存储、界面渲染、AVC/HEVC/AV1、AAC/FLAC/E-AC-3、多音轨、字节进度、缓存清理、Range 暂停续传及网页 POST/HttpOnly Cookie；同一 Linux 包在 Ubuntu 22.04/24.04 验证，同一 macOS 通用包在 Apple Silicon/Intel 验证。Android 按维护者确认范围执行静态分析、自动化测试、插件注册、签名与 16 KB 对齐检查，本轮不做实机验收。报告随 Releases 提供，详见 [发布说明](docs/RELEASES.md)。自动化素材不含真实账号，真实短信登录和所有会员/地区内容不在本轮自动化验证的证明范围内。
 
 ```sh
 # 公共接口与 CDN Range 实测，输出不包含 Cookie、二维码密钥或下载直链

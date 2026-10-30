@@ -58,6 +58,8 @@ jobs:
             cp "/usr/share/doc/$package/copyright" "$bundle/licenses/$package/"
             dpkg-query -W -f='${Package} ${Version}\n' "$package" > "$bundle/licenses/$package/package.txt"
           done
+          mkdir -p "$bundle/licenses/ffmpeg_kit_flutter_new"
+          cp build/linux/x64/release/plugins/ffmpeg_kit_flutter_new/ffmpeg-kit/ffmpeg-kit/lib/*.txt "$bundle/licenses/ffmpeg_kit_flutter_new/"
           # Prebuilt engines/codecs also need a relocatable sibling lookup path.
           for library in "$bundle"/lib/*.so*; do
             patchelf --set-rpath '$ORIGIN' "$library"

@@ -608,8 +608,9 @@ class DownloadManager extends ChangeNotifier {
       void inspectStatus() {
         final status = transfer.statusNotifier.value;
         if ((status == TaskStatus.paused || status.isFinalState) &&
-            !acknowledged.isCompleted)
+            !acknowledged.isCompleted) {
           acknowledged.complete();
+        }
       }
 
       transfer.statusNotifier.addListener(inspectStatus);

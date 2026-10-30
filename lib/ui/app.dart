@@ -201,7 +201,7 @@ class _WorkspaceState extends State<Workspace> {
         const Padding(
           padding: EdgeInsets.only(left: 12),
           child: Text(
-            'BILOAD  /  0.1.5',
+            'BILOAD  /  1.0.0',
             style: TextStyle(fontSize: 10, color: muted, letterSpacing: 1.2),
           ),
         ),
@@ -1296,7 +1296,7 @@ class _WorkspaceState extends State<Workspace> {
           children: [
             Brand(),
             SizedBox(height: 16),
-            Text('0.1.5 · 免费开源', style: TextStyle(color: muted, fontSize: 12)),
+            Text('1.0.0 · 免费开源', style: TextStyle(color: muted, fontSize: 12)),
             SizedBox(height: 8),
             Text(
               '保存账号有权访问的内容。版本与可下载状态以实时解析结果为准。',
@@ -1307,7 +1307,7 @@ class _WorkspaceState extends State<Workspace> {
               onPressed: () => showLicensePage(
                 context: context,
                 applicationName: 'biload',
-                applicationVersion: '0.1.5',
+                applicationVersion: '1.0.0',
                 applicationLegalese: '作者：烨染霜华 · GPL-3.0-or-later',
               ),
               icon: const Icon(Icons.article_outlined, size: 18),
