@@ -18,16 +18,19 @@ reports = Path(args.report_dir).resolve()
 reports.mkdir(parents=True, exist_ok=True)
 port_file = reports / 'fixture-port.txt'
 port_file.unlink(missing_ok=True)
+server_log = (reports / 'fixture-server.log').open('w', encoding='utf-8')
 server = subprocess.Popen([
     sys.executable, str(Path(__file__).with_name('runtime_fixture_server.py')),
     '--port', '0', '--port-file', str(port_file),
-], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+], stdout=server_log, stderr=subprocess.STDOUT, text=True)
 app = None
 try:
-    deadline = time.monotonic() + 15
+    deadline = time.monotonic() + 30
     while not port_file.exists():
         if server.poll() is not None or time.monotonic() > deadline:
-            raise RuntimeError('Fixture server did not start')
+            server_log.flush()
+            print((reports / 'fixture-server.log').read_text(encoding='utf-8'))
+            raise RuntimeError(f'Fixture server did not start (exit {server.poll()})')
         time.sleep(0.1)
     port = int(port_file.read_text(encoding='utf-8'))
     environment = os.environ | {
@@ -73,3 +76,4 @@ finally:
         app.wait()
     server.terminate()
     server.wait(timeout=10)
+    server_log.close()
