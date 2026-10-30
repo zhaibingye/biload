@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import struct
+import socketserver
 import time
 from urllib.parse import urlparse
 
@@ -12,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=18765)
 parser.add_argument('--port-file')
 args = parser.parse_args()
+print('Loading synthetic media fixtures', flush=True)
 root = Path(__file__).resolve().parent.parent / 'test/fixtures/media'
 files = {path.name: path.read_bytes() for path in root.iterdir() if path.is_file() and path.suffix != '.md'}
 padding_size = 4 * 1024 * 1024
@@ -97,7 +99,16 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
 
-server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+class LoopbackServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer.server_bind performs reverse DNS through getfqdn. The
+        # fixture address is known; CI resolver delays must not block startup.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = 'localhost'
+        self.server_port = self.server_address[1]
+
+print('Binding fixture server on IPv4 loopback', flush=True)
+server = LoopbackServer(('127.0.0.1', args.port), Handler)
 if args.port_file:
     Path(args.port_file).write_text(str(server.server_port), encoding='utf-8')
 print(f'Fixture server on loopback port {server.server_port}', flush=True)
